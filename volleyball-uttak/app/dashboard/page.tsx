@@ -27,6 +27,7 @@ interface Player {
   isStudent?: string;
   level?: string;
   attendance?: string;
+  rowNumber?: number; // Radnummer fra spreadsheet
 }
 
 type Selection = Record<Position, string[]>;
@@ -77,6 +78,7 @@ export default function Dashboard() {
   const [dataSource, setDataSource] = useState<string>("");
   const [dataMessage, setDataMessage] = useState<string>("");
   const [totalRegistrations, setTotalRegistrations] = useState<number>(0);
+  const [searchTerm, setSearchTerm] = useState<string>("");
   const [notification, setNotification] = useState<{
     message: string;
     type: "success" | "error" | "info" | "warning";
@@ -115,6 +117,17 @@ export default function Dashboard() {
 
     return positions;
   };
+
+  // Søkefunksjon
+  const filteredPlayers = players.filter((player) => {
+    if (!searchTerm) return true;
+
+    const searchLower = searchTerm.toLowerCase();
+    const nameMatch = player.name.toLowerCase().includes(searchLower);
+    const rowMatch = player.rowNumber?.toString().includes(searchTerm) || false;
+
+    return nameMatch || rowMatch;
+  });
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
@@ -229,7 +242,7 @@ export default function Dashboard() {
     }
   };
 
-  const available = players.filter(
+  const available = filteredPlayers.filter(
     (p) => !POSITIONS.some((pos) => selection[pos].includes(p.name))
   );
 
@@ -257,8 +270,10 @@ export default function Dashboard() {
                 <span className="text-2xl">🏐</span>
               </div>
               <div>
-                <h1 className="text-2xl font-bold">NTNUI Volleyball Uttak</h1>
-                <p className="text-white/80">Lagadministrasjon</p>
+                <h1 className="text-2xl font-bold text-white">
+                  NTNUI Volleyball Uttak
+                </h1>
+                <p className="text-white/90">Lagadministrasjon</p>
               </div>
             </div>
             <button
@@ -290,24 +305,26 @@ export default function Dashboard() {
               <span className="text-lg">
                 {dataSource === "google-sheets" ? "📊" : "⚠️"}
               </span>
-              <span className="font-medium">
+              <span className="font-medium text-blue-900">
                 {dataSource === "google-sheets"
                   ? "NTNUI Påmelding"
                   : "Eksempel-data"}
               </span>
             </div>
             {dataMessage && (
-              <p className="text-blue-600 text-sm mt-1">{dataMessage}</p>
+              <p className="text-blue-700 text-sm mt-1">{dataMessage}</p>
             )}
             {totalRegistrations > 0 && (
-              <p className="text-blue-600 text-sm mt-1">
+              <p className="text-blue-700 text-sm mt-1">
                 Totalt {totalRegistrations} påmeldinger
               </p>
             )}
             {dataSource === "fallback" && (
-              <p className="text-blue-600 text-sm mt-2">
+              <p className="text-blue-700 text-sm mt-2">
                 For å bruke dine egne spillere, konfigurer Google Sheets i{" "}
-                <code className="bg-blue-100 px-1 rounded">.env.local</code>
+                <code className="bg-blue-100 px-1 rounded text-blue-900">
+                  .env.local
+                </code>
               </p>
             )}
           </div>
@@ -351,10 +368,45 @@ export default function Dashboard() {
               </h2>
             </div>
             <div className="p-6">
+              {/* Søkefelt */}
+              <div className="mb-4">
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Søk etter navn eller radnummer..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
+                  />
+                  <svg
+                    className="absolute left-3 top-2.5 h-5 w-5 text-gray-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                </div>
+                {searchTerm && (
+                  <p className="text-sm text-gray-600 mt-2">
+                    Viser {available.length} av {filteredPlayers.length}{" "}
+                    spillere
+                  </p>
+                )}
+              </div>
+
               {available.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <span className="text-4xl mb-4 block">🎉</span>
-                  <p>Alle spillere er valgt til lag!</p>
+                  <p className="text-gray-700">
+                    {searchTerm
+                      ? "Ingen spillere funnet"
+                      : "Alle spillere er valgt til lag!"}
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -367,24 +419,39 @@ export default function Dashboard() {
                     return (
                       <div
                         key={player.name}
-                        className="border border-gray-200 rounded-lg p-4 hover-lift">
+                        className="border border-gray-200 rounded-lg p-4 hover-lift bg-white">
                         <div className="flex items-center gap-3 mb-2">
                           <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold">
                             {player.name.charAt(0)}
                           </div>
                           <div className="flex-1">
-                            <span className="font-medium">{player.name}</span>
+                            <span className="font-medium text-gray-900">
+                              {player.name}
+                            </span>
                             {level && (
-                              <span className="text-sm text-gray-500 ml-2">
+                              <span className="text-sm text-gray-600 ml-2">
                                 ({level})
                               </span>
                             )}
                           </div>
+                          {player.rowNumber && (
+                            <div className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                              Rad {player.rowNumber}
+                            </div>
+                          )}
                         </div>
+
+                        {player.phone && (
+                          <div className="mb-2">
+                            <p className="text-sm text-gray-600">
+                              📞 {player.phone}
+                            </p>
+                          </div>
+                        )}
 
                         {desiredPositions.length > 0 && (
                           <div className="mb-3">
-                            <p className="text-sm text-gray-600 mb-1">
+                            <p className="text-sm text-gray-700 mb-1 font-medium">
                               Ønskede posisjoner:
                             </p>
                             <div className="flex flex-wrap gap-1">
@@ -401,7 +468,7 @@ export default function Dashboard() {
 
                         <div className="flex gap-2">
                           <select
-                            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-gray-900"
                             defaultValue=""
                             onChange={(e) =>
                               updateSelection(

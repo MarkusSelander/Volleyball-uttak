@@ -34,6 +34,7 @@ interface PlayerData {
   isStudent?: string;
   level?: string;
   attendance?: string;
+  rowNumber?: number; // Radnummer fra spreadsheet
 }
 
 export async function GET() {
@@ -87,7 +88,7 @@ export async function GET() {
 
     const players: PlayerData[] = dataRows
       .filter((row) => row[2] && row[2].trim() !== "") // Filtrer tomme rader basert på navn-kolonnen (C)
-      .map((row) => {
+      .map((row, index) => {
         const player: PlayerData = {
           name: row[2]?.trim() || "", // Navn / Name (kolonne C)
           email: row[13]?.trim() || "", // Epost / email (kolonne N)
@@ -102,6 +103,7 @@ export async function GET() {
           isStudent: row[8]?.trim() || "", // Er du student ved NTNU høsten 2025? (kolonne I)
           level: row[14]?.trim() || "", // Høyeste nivå påmeldt (kolonne O)
           attendance: row[15]?.trim() || "", // Oppmøte (kolonne P)
+          rowNumber: index + 2, // Radnummer (starter fra rad 2 siden vi hopper over header)
         };
         return player;
       });
