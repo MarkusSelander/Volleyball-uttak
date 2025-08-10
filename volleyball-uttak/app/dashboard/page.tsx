@@ -1,11 +1,18 @@
 "use client";
 
 import { auth, db, onAuthStateChanged, signOut } from "@/lib/firebase";
+import {
+  DndContext,
+  DragEndEvent,
+  useDraggable,
+  useDroppable,
+} from "@dnd-kit/core";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import LoadingSpinner from "../components/LoadingSpinner";
 import Notification from "../components/Notification";
+import PlayerCard from "../components/PlayerCard";
 import PositionSection from "../components/PositionSection";
 import StatsCard from "../components/StatsCard";
 
@@ -235,13 +242,24 @@ export default function Dashboard() {
       // Legg til spilleren i den valgte posisjonen
       newSel[pos] = [...newSel[pos], player.name];
 
+      // Oppdater state først for umiddelbar UI oppdatering
       setSelection(newSel);
+
+      // Prøv å lagre til Firebase, men ikke la det stoppe UI oppdateringen
       if (auth.currentUser) {
-        await setDoc(doc(db, "teams", auth.currentUser.uid), {
-          ...newSel,
-          potentialPlayers: newPotentialPlayers,
-        });
-        showNotification(`${player.name} lagt til som ${pos}`, "success");
+        try {
+          await setDoc(doc(db, "teams", auth.currentUser.uid), {
+            ...newSel,
+            potentialPlayers: newPotentialPlayers,
+          });
+          showNotification(`${player.name} lagt til som ${pos}`, "success");
+        } catch (firebaseError) {
+          console.error("Firebase error, but UI updated:", firebaseError);
+          showNotification(
+            `${player.name} lagt til som ${pos} (offline)`,
+            "info"
+          );
+        }
       }
     } catch (error) {
       console.error("Error updating selection:", error);
@@ -258,17 +276,26 @@ export default function Dashboard() {
       // Fjern spilleren fra den spesifikke posisjonen
       newSel[pos] = newSel[pos].filter((name) => name !== playerName);
 
+      // Oppdater state først for umiddelbar UI oppdatering
       setSelection(newSel);
+
+      // Prøv å lagre til Firebase, men ikke la det stoppe UI oppdateringen
       if (auth.currentUser) {
-        await setDoc(doc(db, "teams", auth.currentUser.uid), {
-          ...newSel,
-          potentialPlayers,
-        });
-        showNotification(
-          `${playerName} fjernet fra ${pos} og lagt tilbake i tilgjengelige spillere`,
-          "info"
-        );
+        try {
+          await setDoc(doc(db, "teams", auth.currentUser.uid), {
+            ...newSel,
+            potentialPlayers,
+          });
+        } catch (firebaseError) {
+          console.error("Firebase error, but UI updated:", firebaseError);
+          // Ikke vis feilmelding til bruker hvis UI fortsatt fungerer
+        }
       }
+
+      showNotification(
+        `${playerName} fjernet fra ${pos} og lagt tilbake i tilgjengelige spillere`,
+        "info"
+      );
     } catch (error) {
       console.error("Error removing player:", error);
       showNotification("Feil ved fjerning av spiller", "error");
@@ -281,17 +308,28 @@ export default function Dashboard() {
     setIsSaving(true);
     try {
       const newPotentialPlayers = [...potentialPlayers, player.name];
+
+      // Oppdater state først for umiddelbar UI oppdatering
       setPotentialPlayers(newPotentialPlayers);
 
+      // Prøv å lagre til Firebase, men ikke la det stoppe UI oppdateringen
       if (auth.currentUser) {
-        await setDoc(doc(db, "teams", auth.currentUser.uid), {
-          ...selection,
-          potentialPlayers: newPotentialPlayers,
-        });
-        showNotification(
-          `${player.name} lagt til i potensielle spillere`,
-          "success"
-        );
+        try {
+          await setDoc(doc(db, "teams", auth.currentUser.uid), {
+            ...selection,
+            potentialPlayers: newPotentialPlayers,
+          });
+          showNotification(
+            `${player.name} lagt til i potensielle spillere`,
+            "success"
+          );
+        } catch (firebaseError) {
+          console.error("Firebase error, but UI updated:", firebaseError);
+          showNotification(
+            `${player.name} lagt til i potensielle spillere (offline)`,
+            "info"
+          );
+        }
       }
     } catch (error) {
       console.error("Error adding to potential:", error);
@@ -307,24 +345,295 @@ export default function Dashboard() {
       const newPotentialPlayers = potentialPlayers.filter(
         (name) => name !== playerName
       );
+
+      // Oppdater state først for umiddelbar UI oppdatering
       setPotentialPlayers(newPotentialPlayers);
 
+      // Prøv å lagre til Firebase, men ikke la det stoppe UI oppdateringen
       if (auth.currentUser) {
-        await setDoc(doc(db, "teams", auth.currentUser.uid), {
-          ...selection,
-          potentialPlayers: newPotentialPlayers,
-        });
-        showNotification(
-          `${playerName} fjernet fra potensielle spillere`,
-          "info"
-        );
+        try {
+          await setDoc(doc(db, "teams", auth.currentUser.uid), {
+            ...selection,
+            potentialPlayers: newPotentialPlayers,
+          });
+        } catch (firebaseError) {
+          console.error("Firebase error, but UI updated:", firebaseError);
+          // Ikke vis feilmelding til bruker hvis UI fortsatt fungerer
+        }
       }
+
+      showNotification(
+        `${playerName} fjernet fra potensielle spillere`,
+        "info"
+      );
     } catch (error) {
       console.error("Error removing from potential:", error);
       showNotification("Feil ved fjerning av potensielle spiller", "error");
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const movePlayer = async (
+    fromPosition: Position,
+    playerName: string,
+    toPosition: Position
+  ) => {
+    setIsSaving(true);
+    try {
+      const newSel: Selection = { ...selection };
+
+      // Fjern spilleren fra den opprinnelige posisjonen
+      newSel[fromPosition] = newSel[fromPosition].filter(
+        (name) => name !== playerName
+      );
+
+      // Legg til spilleren i den nye posisjonen
+      newSel[toPosition] = [...newSel[toPosition], playerName];
+
+      // Oppdater state først for umiddelbar UI oppdatering
+      setSelection(newSel);
+
+      // Prøv å lagre til Firebase, men ikke la det stoppe UI oppdateringen
+      if (auth.currentUser) {
+        try {
+          await setDoc(doc(db, "teams", auth.currentUser.uid), {
+            ...newSel,
+            potentialPlayers,
+          });
+          showNotification(
+            `${playerName} flyttet fra ${fromPosition} til ${toPosition}`,
+            "success"
+          );
+        } catch (firebaseError) {
+          console.error("Firebase error, but UI updated:", firebaseError);
+          showNotification(
+            `${playerName} flyttet fra ${fromPosition} til ${toPosition} (offline)`,
+            "info"
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Error moving player:", error);
+      showNotification("Feil ved flytting av spiller", "error");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const moveFromPotential = async (
+    playerName: string,
+    toPosition: Position
+  ) => {
+    setIsSaving(true);
+    try {
+      const newPotentialPlayers = potentialPlayers.filter(
+        (name) => name !== playerName
+      );
+      const newSel: Selection = { ...selection };
+
+      // Legg til spilleren i den valgte posisjonen
+      newSel[toPosition] = [...newSel[toPosition], playerName];
+
+      // Oppdater state først for umiddelbar UI oppdatering
+      setPotentialPlayers(newPotentialPlayers);
+      setSelection(newSel);
+
+      // Prøv å lagre til Firebase, men ikke la det stoppe UI oppdateringen
+      if (auth.currentUser) {
+        try {
+          await setDoc(doc(db, "teams", auth.currentUser.uid), {
+            ...newSel,
+            potentialPlayers: newPotentialPlayers,
+          });
+          showNotification(
+            `${playerName} flyttet fra potensielle til ${toPosition}`,
+            "success"
+          );
+        } catch (firebaseError) {
+          console.error("Firebase error, but UI updated:", firebaseError);
+          showNotification(
+            `${playerName} flyttet fra potensielle til ${toPosition} (offline)`,
+            "info"
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Error moving from potential:", error);
+      showNotification("Feil ved flytting av spiller", "error");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over) return;
+
+    const activeId = active.id as string;
+    const overId = over.id as string;
+
+    // Håndter drag fra tilgjengelige spillere
+    if (activeId.startsWith("available-")) {
+      const playerName = activeId.replace("available-", "");
+      const player = players.find((p) => p.name === playerName);
+
+      if (!player) return;
+
+      if (overId === "potential-drop") {
+        // Dra til potensielle spillere
+        addToPotential(player);
+      } else if (overId.startsWith("position-")) {
+        // Dra til spesifikk posisjon
+        const position = overId.replace("position-", "") as Position;
+        updateSelection(position, player);
+      }
+    }
+
+    // Håndter drag fra laguttak
+    else if (activeId.startsWith("player-")) {
+      const parts = activeId.split("-");
+      const fromPosition = parts[1] as Position;
+      const playerName = parts.slice(2).join("-");
+
+      if (overId === "potential-drop") {
+        // Dra til potensielle spillere
+        removePlayer(fromPosition, playerName);
+        addToPotential({ name: playerName });
+      } else if (overId.startsWith("position-")) {
+        // Dra til annen posisjon
+        const toPosition = overId.replace("position-", "") as Position;
+        if (fromPosition !== toPosition) {
+          movePlayer(fromPosition, playerName, toPosition);
+        }
+      }
+    }
+
+    // Håndter drag fra potensielle spillere
+    else if (activeId.startsWith("potential-")) {
+      const playerName = activeId.replace("potential-", "");
+
+      if (overId.startsWith("position-")) {
+        // Dra til spesifikk posisjon
+        const position = overId.replace("position-", "") as Position;
+        moveFromPotential(playerName, position);
+      }
+    }
+  };
+
+  // Drop zone komponent for potensielle spillere
+  const PotentialDropZone = ({ children }: { children: React.ReactNode }) => {
+    const { setNodeRef, isOver } = useDroppable({
+      id: "potential-drop",
+      data: {
+        type: "potential-drop",
+      },
+    });
+
+    return (
+      <div
+        ref={setNodeRef}
+        className={`min-h-[100px] transition-all duration-200 ${
+          isOver
+            ? "bg-orange-100 border-2 border-orange-300 border-dashed rounded-lg"
+            : ""
+        }`}>
+        {children}
+      </div>
+    );
+  };
+
+  // Draggable komponent for potensielle spillere
+  const DraggablePotentialPlayer = ({
+    playerName,
+    positionIcons,
+    POSITIONS,
+    moveFromPotential,
+    removeFromPotential,
+    isSaving,
+    index,
+  }: {
+    playerName: string;
+    positionIcons: Record<string, string>;
+    POSITIONS: readonly string[];
+    moveFromPotential: (playerName: string, toPosition: Position) => void;
+    removeFromPotential: (playerName: string) => void;
+    isSaving: boolean;
+    index: number;
+  }) => {
+    const { attributes, listeners, setNodeRef, transform, isDragging } =
+      useDraggable({
+        id: `potential-${playerName}`,
+        data: {
+          playerName: playerName,
+          type: "potential-player",
+        },
+      });
+
+    const style = transform
+      ? {
+          transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+        }
+      : undefined;
+
+    return (
+      <div
+        ref={setNodeRef}
+        {...attributes}
+        {...listeners}
+        className={`flex items-center justify-between p-3 bg-gradient-to-r from-orange-50 to-yellow-50 border border-orange-200 rounded-lg animate-slide-in shadow-sm hover:shadow-md transition-all duration-200 cursor-grab active:cursor-grabbing ${
+          isDragging ? "opacity-50 scale-105 shadow-lg" : ""
+        }`}
+        style={{
+          animationDelay: `${index * 0.1}s`,
+          ...style,
+        }}>
+        <span className="font-semibold text-gray-800">{playerName}</span>
+        <div className="flex items-center gap-2">
+          <select
+            className="border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm font-medium text-gray-700 hover:border-blue-400"
+            defaultValue=""
+            onChange={(e) => {
+              if (e.target.value) {
+                moveFromPotential(playerName, e.target.value as Position);
+              }
+            }}
+            disabled={isSaving}
+            onClick={(e) => e.stopPropagation()}>
+            <option value="" disabled>
+              Velg posisjon
+            </option>
+            {POSITIONS.map((pos) => (
+              <option key={pos} value={pos}>
+                {positionIcons[pos]} {pos}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              removeFromPotential(playerName);
+            }}
+            disabled={isSaving}
+            className="text-red-500 hover:text-red-700 p-2 rounded-full transition-colors hover:bg-red-50 hover:scale-110"
+            title="Fjern fra potensielle">
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
+      </div>
+    );
   };
 
   // Beregn tilgjengelige spillere (spillere som ikke er valgt til noen posisjon eller potensielle)
@@ -348,312 +657,236 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="gradient-primary text-white shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 py-6">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
-                <span className="text-2xl">🏐</span>
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-white">
-                  NTNUI Volleyball Uttak
-                </h1>
-                <p className="text-white/90">Lagadministrasjon</p>
-              </div>
-            </div>
-            <button
-              onClick={() => signOut(auth)}
-              className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors flex items-center gap-2">
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                />
-              </svg>
-              Logg ut
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Statistikk */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <StatsCard
-            title="Totalt påmeldt"
-            value={totalRegistrations}
-            icon="👥"
-            color="bg-blue-100"
-          />
-          <StatsCard
-            title="Valgt til lag"
-            value={totalSelected}
-            icon="✅"
-            color="bg-green-100"
-          />
-          <StatsCard
-            title="Tilgjengelige"
-            value={available.length}
-            icon="⏳"
-            color="bg-yellow-100"
-          />
-          <StatsCard
-            title="Potensielle"
-            value={potentialPlayers.length}
-            icon="⭐"
-            color="bg-orange-100"
-          />
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Tilgjengelige spillere */}
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden animate-fade-in">
-            <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-4">
-              <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-                <span>👥</span>
-                Tilgjengelige spillere
-              </h2>
-            </div>
-            <div className="p-6">
-              {/* Søkefelt */}
-              <div className="mb-4">
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="Søk etter navn eller radnummer..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
-                  />
-                  <svg
-                    className="absolute left-3 top-2.5 h-5 w-5 text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                    />
-                  </svg>
+    <DndContext onDragEnd={handleDragEnd}>
+      <div className="min-h-screen bg-gray-50">
+        {/* Header */}
+        <header className="gradient-primary text-white shadow-lg">
+          <div className="max-w-7xl mx-auto px-4 py-6">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
+                  <span className="text-2xl">🏐</span>
                 </div>
-                {searchTerm && (
-                  <p className="text-sm text-gray-600 mt-2">
-                    Viser {available.length} av {filteredPlayers.length}{" "}
-                    spillere
-                  </p>
+                <div>
+                  <h1 className="text-2xl font-bold text-white">
+                    NTNUI Volleyball Uttak
+                  </h1>
+                  <p className="text-white/90">Lagadministrasjon</p>
+                </div>
+              </div>
+              <button
+                onClick={() => signOut(auth)}
+                className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors flex items-center gap-2">
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                  />
+                </svg>
+                Logg ut
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          {/* Statistikk */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <StatsCard
+              title="Totalt påmeldt"
+              value={totalRegistrations}
+              icon="👥"
+              color="bg-blue-100"
+            />
+            <StatsCard
+              title="Valgt til lag"
+              value={totalSelected}
+              icon="✅"
+              color="bg-green-100"
+            />
+            <StatsCard
+              title="Tilgjengelige"
+              value={available.length}
+              icon="⏳"
+              color="bg-yellow-100"
+            />
+            <StatsCard
+              title="Potensielle"
+              value={potentialPlayers.length}
+              icon="⭐"
+              color="bg-orange-100"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Tilgjengelige spillere */}
+            <div className="bg-white rounded-xl shadow-sm overflow-hidden animate-fade-in">
+              <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-4">
+                <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                  <span>👥</span>
+                  Tilgjengelige spillere
+                </h2>
+              </div>
+              <div className="p-6">
+                {/* Søkefelt */}
+                <div className="mb-4">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Søk etter navn eller radnummer..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
+                    />
+                    <svg
+                      className="absolute left-3 top-2.5 h-5 w-5 text-gray-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                      />
+                    </svg>
+                  </div>
+                  {searchTerm && (
+                    <p className="text-sm text-gray-600 mt-2">
+                      Viser {available.length} av {filteredPlayers.length}{" "}
+                      spillere
+                    </p>
+                  )}
+                </div>
+
+                {available.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <span className="text-4xl mb-4 block">🎉</span>
+                    <p className="text-gray-700">
+                      {searchTerm
+                        ? "Ingen spillere funnet"
+                        : "Alle spillere er valgt til lag eller potensielle!"}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {available.map((player, index) => (
+                      <PlayerCard
+                        key={player.name}
+                        player={player}
+                        positions={POSITIONS}
+                        positionIcons={positionIcons}
+                        onSelectPosition={(
+                          pos: string,
+                          player: { name: string }
+                        ) => updateSelection(pos as Position, player)}
+                        isSaving={isSaving}
+                        index={index}
+                        id={`available-${player.name}`}
+                      />
+                    ))}
+                  </div>
                 )}
               </div>
-
-              {available.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <span className="text-4xl mb-4 block">🎉</span>
-                  <p className="text-gray-700">
-                    {searchTerm
-                      ? "Ingen spillere funnet"
-                      : "Alle spillere er valgt til lag eller potensielle!"}
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {available.map((player, index) => {
-                    const desiredPositions = player.desiredPositions
-                      ? mapPositions(player.desiredPositions)
-                      : [];
-                    const level = player.desiredLevel || player.level || "";
-
-                    return (
-                      <div
-                        key={player.name}
-                        className="border border-gray-200 rounded-lg p-4 hover-lift bg-white">
-                        <div className="flex items-center gap-3 mb-2">
-                          <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold">
-                            {player.name.charAt(0)}
-                          </div>
-                          <div className="flex-1">
-                            <span className="font-medium text-gray-900">
-                              {player.name}
-                            </span>
-                            {level && (
-                              <span className="text-sm text-gray-600 ml-2">
-                                ({level})
-                              </span>
-                            )}
-                          </div>
-                          {player.rowNumber && (
-                            <div className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                              Rad {player.rowNumber}
-                            </div>
-                          )}
-                        </div>
-
-                        {player.phone && (
-                          <div className="mb-2">
-                            <p className="text-sm text-gray-600">
-                              📞 {player.phone}
-                            </p>
-                          </div>
-                        )}
-
-                        {desiredPositions.length > 0 && (
-                          <div className="mb-3">
-                            <p className="text-sm text-gray-700 mb-1 font-medium">
-                              Ønskede posisjoner:
-                            </p>
-                            <div className="flex flex-wrap gap-1">
-                              {desiredPositions.map((pos) => (
-                                <span
-                                  key={pos}
-                                  className={`px-2 py-1 rounded text-xs text-white ${positionColors[pos]}`}>
-                                  {positionIcons[pos]} {pos}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        <div className="flex gap-2">
-                          <select
-                            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-gray-900"
-                            defaultValue=""
-                            onChange={(e) =>
-                              updateSelection(
-                                e.target.value as Position,
-                                player
-                              )
-                            }
-                            disabled={isSaving}>
-                            <option value="" disabled>
-                              Velg posisjon
-                            </option>
-                            {POSITIONS.map((pos) => (
-                              <option key={pos} value={pos}>
-                                {positionIcons[pos]} {pos}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            onClick={() => addToPotential(player)}
-                            disabled={isSaving}
-                            className="px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-sm font-medium"
-                            title="Legg til som potensielle spiller">
-                            ⭐
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
             </div>
-          </div>
 
-          {/* Potensielle spillere */}
-          <div
-            className="bg-white rounded-xl shadow-sm overflow-hidden animate-fade-in"
-            style={{ animationDelay: "0.1s" }}>
-            <div className="bg-gradient-to-r from-orange-500 to-yellow-600 px-6 py-4">
-              <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-                <span>⭐</span>
-                Potensielle spillere
-              </h2>
-            </div>
-            <div className="p-6 bg-gradient-to-br from-orange-50 to-yellow-50">
-              {potentialPlayers.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <span className="text-4xl mb-4 block">⭐</span>
-                  <p className="text-gray-700">
-                    Ingen potensielle spillere valgt
-                  </p>
-                  <p className="text-sm text-gray-500 mt-2">
-                    Klikk ⭐ for å legge til spillere
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {potentialPlayers.map((playerName, index) => (
-                    <div
-                      key={playerName}
-                      className="flex items-center justify-between p-3 bg-gradient-to-r from-orange-50 to-yellow-50 border border-orange-200 rounded-lg animate-slide-in shadow-sm hover:shadow-md transition-all duration-200"
-                      style={{ animationDelay: `${index * 0.1}s` }}>
-                      <span className="font-semibold text-gray-800">
-                        {playerName}
-                      </span>
-                      <button
-                        onClick={() => removeFromPotential(playerName)}
-                        disabled={isSaving}
-                        className="text-red-500 hover:text-red-700 p-2 rounded-full transition-colors hover:bg-red-50 hover:scale-110"
-                        title="Fjern fra potensielle">
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24">
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M6 18L18 6M6 6l12 12"
-                          />
-                        </svg>
-                      </button>
+            {/* Potensielle spillere */}
+            <div
+              className="bg-white rounded-xl shadow-sm overflow-hidden animate-fade-in"
+              style={{ animationDelay: "0.1s" }}>
+              <div className="bg-gradient-to-r from-orange-500 to-yellow-600 px-6 py-4">
+                <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                  <span>⭐</span>
+                  Potensielle spillere
+                </h2>
+              </div>
+              <div className="p-6 bg-gradient-to-br from-orange-50 to-yellow-50">
+                <PotentialDropZone>
+                  {potentialPlayers.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <span className="text-4xl mb-4 block">⭐</span>
+                      <p className="text-gray-700">
+                        Ingen potensielle spillere valgt
+                      </p>
+                      <p className="text-sm text-gray-500 mt-2">
+                        Dra spillere hit eller klikk ⭐ for å legge til
+                      </p>
                     </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {potentialPlayers.map((playerName, index) => (
+                        <DraggablePotentialPlayer
+                          key={playerName}
+                          playerName={playerName}
+                          positionIcons={positionIcons}
+                          POSITIONS={POSITIONS}
+                          moveFromPotential={moveFromPotential}
+                          removeFromPotential={removeFromPotential}
+                          isSaving={isSaving}
+                          index={index}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </PotentialDropZone>
+              </div>
+            </div>
+
+            {/* Laguttak */}
+            <div
+              className="bg-white rounded-xl shadow-sm overflow-hidden animate-fade-in"
+              style={{ animationDelay: "0.2s" }}>
+              <div className="bg-gradient-to-r from-purple-500 to-pink-600 px-6 py-4">
+                <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                  <span>🏆</span>
+                  Laguttak
+                </h2>
+              </div>
+              <div className="p-6 bg-gradient-to-br from-purple-50 to-pink-50">
+                <div className="space-y-6">
+                  {POSITIONS.map((pos) => (
+                    <PositionSection
+                      key={pos}
+                      position={pos}
+                      players={selection[pos]}
+                      positionColors={positionColors}
+                      positionIcons={positionIcons}
+                      onRemovePlayer={(pos, playerName) =>
+                        removePlayer(pos as Position, playerName)
+                      }
+                      onMovePlayer={(fromPos, playerName, toPos) =>
+                        movePlayer(
+                          fromPos as Position,
+                          playerName,
+                          toPos as Position
+                        )
+                      }
+                      positions={POSITIONS}
+                      isSaving={isSaving}
+                    />
                   ))}
                 </div>
-              )}
-            </div>
-          </div>
-
-          {/* Laguttak */}
-          <div
-            className="bg-white rounded-xl shadow-sm overflow-hidden animate-fade-in"
-            style={{ animationDelay: "0.2s" }}>
-            <div className="bg-gradient-to-r from-purple-500 to-pink-600 px-6 py-4">
-              <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-                <span>🏆</span>
-                Laguttak
-              </h2>
-            </div>
-            <div className="p-6 bg-gradient-to-br from-purple-50 to-pink-50">
-              <div className="space-y-6">
-                {POSITIONS.map((pos) => (
-                  <PositionSection
-                    key={pos}
-                    position={pos}
-                    players={selection[pos]}
-                    positionColors={positionColors}
-                    positionIcons={positionIcons}
-                    onRemovePlayer={(pos, playerName) =>
-                      removePlayer(pos as Position, playerName)
-                    }
-                    isSaving={isSaving}
-                  />
-                ))}
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Notification */}
-        <Notification
-          message={notification.message}
-          type={notification.type}
-          isVisible={notification.isVisible}
-          onClose={() =>
-            setNotification((prev) => ({ ...prev, isVisible: false }))
-          }
-        />
+          {/* Notification */}
+          <Notification
+            message={notification.message}
+            type={notification.type}
+            isVisible={notification.isVisible}
+            onClose={() =>
+              setNotification((prev) => ({ ...prev, isVisible: false }))
+            }
+          />
+        </div>
       </div>
-    </div>
+    </DndContext>
   );
 }
