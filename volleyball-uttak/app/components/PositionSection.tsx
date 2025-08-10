@@ -13,6 +13,7 @@ interface PositionSectionProps {
   ) => void;
   positions: readonly string[];
   isSaving: boolean;
+  nameToRow: Record<string, number | undefined>;
 }
 
 export default function PositionSection({
@@ -24,6 +25,7 @@ export default function PositionSection({
   onMovePlayer,
   positions,
   isSaving,
+  nameToRow,
 }: PositionSectionProps) {
   const { setNodeRef: setDroppableRef, isOver } = useDroppable({
     id: `position-${position}`,
@@ -56,6 +58,7 @@ export default function PositionSection({
               key={name}
               name={name}
               position={position}
+              rowNumber={nameToRow[name]}
               positionIcons={positionIcons}
               positions={positions}
               onRemovePlayer={onRemovePlayer}
@@ -73,6 +76,7 @@ export default function PositionSection({
 interface DraggablePlayerProps {
   name: string;
   position: string;
+  rowNumber?: number;
   positionIcons: Record<string, string>;
   positions: readonly string[];
   onRemovePlayer: (position: string, playerName: string) => void;
@@ -88,6 +92,7 @@ interface DraggablePlayerProps {
 function DraggablePlayer({
   name,
   position,
+  rowNumber,
   positionIcons,
   positions,
   onRemovePlayer,
@@ -123,7 +128,16 @@ function DraggablePlayer({
         animationDelay: `${index * 0.1}s`,
         ...style,
       }}>
-      <span className="font-semibold text-gray-800">{name}</span>
+      <div className="flex items-center gap-2">
+        {typeof rowNumber === "number" && (
+          <span
+            className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-800 border border-gray-200"
+            title={`Rad ${rowNumber}`}>
+            #{rowNumber}
+          </span>
+        )}
+        <span className="font-semibold text-gray-800">{name}</span>
+      </div>
       <div className="flex items-center gap-2">
         <select
           className="border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm font-medium text-gray-700 hover:border-blue-400"

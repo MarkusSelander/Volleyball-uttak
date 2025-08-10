@@ -1,7 +1,7 @@
 import { useDraggable } from "@dnd-kit/core";
 
 interface PlayerCardProps {
-  player: { name: string };
+  player: { name: string; rowNumber?: number };
   positions: readonly string[];
   positionIcons: Record<string, string>;
   onSelectPosition: (position: string, player: { name: string }) => void;
@@ -49,6 +49,14 @@ export default function PlayerCard({
       <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold">
         {player.name.charAt(0)}
       </div>
+      {/* Row number badge when available */}
+      {typeof player.rowNumber === "number" && (
+        <span
+          className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200"
+          title={`Rad ${player.rowNumber}`}>
+          #{player.rowNumber}
+        </span>
+      )}
       <span className="flex-1 font-medium text-gray-800">{player.name}</span>
       <select
         className="border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 font-medium text-gray-700 hover:border-blue-400"

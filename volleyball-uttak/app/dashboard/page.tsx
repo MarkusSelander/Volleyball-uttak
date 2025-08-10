@@ -9,7 +9,7 @@ import {
 } from "@dnd-kit/core";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import LoadingSpinner from "../components/LoadingSpinner";
 import Notification from "../components/Notification";
 import PlayerCard from "../components/PlayerCard";
@@ -141,6 +141,13 @@ export default function Dashboard() {
 
     return nameMatch || rowMatch;
   });
+
+  // Map for quick lookup of row numbers by player name
+  const nameToRow = useMemo(() => {
+    const m: Record<string, number | undefined> = {};
+    for (const p of players) m[p.name] = p.rowNumber;
+    return m;
+  }, [players]);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
@@ -547,6 +554,7 @@ export default function Dashboard() {
   // Draggable komponent for potensielle spillere
   const DraggablePotentialPlayer = ({
     playerName,
+    rowNumber,
     positionIcons,
     POSITIONS,
     moveFromPotential,
@@ -555,6 +563,7 @@ export default function Dashboard() {
     index,
   }: {
     playerName: string;
+    rowNumber?: number;
     positionIcons: Record<string, string>;
     POSITIONS: readonly string[];
     moveFromPotential: (playerName: string, toPosition: Position) => void;
@@ -589,7 +598,16 @@ export default function Dashboard() {
           animationDelay: `${index * 0.1}s`,
           ...style,
         }}>
-        <span className="font-semibold text-gray-800">{playerName}</span>
+        <div className="flex items-center gap-2">
+          {typeof rowNumber === "number" && (
+            <span
+              className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 border border-orange-200"
+              title={`Rad ${rowNumber}`}>
+              #{rowNumber}
+            </span>
+          )}
+          <span className="font-semibold text-gray-800">{playerName}</span>
+        </div>
         <div className="flex items-center gap-2">
           <select
             className="border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm font-medium text-gray-700 hover:border-blue-400"
@@ -824,6 +842,7 @@ export default function Dashboard() {
                         <DraggablePotentialPlayer
                           key={playerName}
                           playerName={playerName}
+                          rowNumber={nameToRow[playerName]}
                           positionIcons={positionIcons}
                           POSITIONS={POSITIONS}
                           moveFromPotential={moveFromPotential}
@@ -869,6 +888,7 @@ export default function Dashboard() {
                       }
                       positions={POSITIONS}
                       isSaving={isSaving}
+                      nameToRow={nameToRow}
                     />
                   ))}
                 </div>
