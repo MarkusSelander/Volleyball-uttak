@@ -589,9 +589,7 @@ export default function Dashboard() {
     return (
       <div
         ref={setNodeRef}
-        {...attributes}
-        {...listeners}
-        className={`flex items-center justify-between p-3 bg-gradient-to-r from-orange-50 to-yellow-50 border border-orange-200 rounded-lg animate-slide-in shadow-sm hover:shadow-md transition-all duration-200 cursor-grab active:cursor-grabbing ${
+        className={`flex items-center justify-between p-3 bg-gradient-to-r from-orange-50 to-yellow-50 border border-orange-200 rounded-lg animate-slide-in shadow-sm hover:shadow-md transition-all duration-200 ${
           isDragging ? "opacity-50 scale-105 shadow-lg" : ""
         }`}
         style={{
@@ -599,6 +597,20 @@ export default function Dashboard() {
           ...style,
         }}>
         <div className="flex items-center gap-2">
+          {/* Drag handle */}
+          <button
+            type="button"
+            className="p-1 text-orange-400 hover:text-orange-600 cursor-grab active:cursor-grabbing"
+            aria-label="Dra for å flytte"
+            title="Dra for å flytte"
+            {...attributes}
+            {...listeners}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M7 4a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 8a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 12a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 16a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2z" />
+            </svg>
+          </button>
           {typeof rowNumber === "number" && (
             <span
               className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 border border-orange-200"
@@ -635,7 +647,9 @@ export default function Dashboard() {
             }}
             disabled={isSaving}
             className="text-red-500 hover:text-red-700 p-2 rounded-full transition-colors hover:bg-red-50 hover:scale-110"
-            title="Fjern fra potensielle">
+            title="Fjern fra potensielle"
+            type="button"
+          >
             <svg
               className="w-4 h-4"
               fill="none"
