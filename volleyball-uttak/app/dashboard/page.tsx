@@ -16,7 +16,7 @@ type Position = (typeof POSITIONS)[number];
 interface Player {
   name: string;
   email?: string;
-  phone?: string;
+  phone?: number;
   gender?: string;
   birthDate?: string;
   previousPositions?: string;
@@ -207,10 +207,15 @@ export default function Dashboard() {
     setIsSaving(true);
     try {
       const newSel: Selection = { ...selection };
+
+      // Fjern spilleren fra alle posisjoner først (for å unngå duplikater)
       for (const p of POSITIONS) {
         newSel[p] = newSel[p].filter((n) => n !== player.name);
       }
+
+      // Legg til spilleren i den valgte posisjonen
       newSel[pos] = [...newSel[pos], player.name];
+
       setSelection(newSel);
       if (auth.currentUser) {
         await setDoc(doc(db, "teams", auth.currentUser.uid), newSel);
@@ -228,11 +233,16 @@ export default function Dashboard() {
     setIsSaving(true);
     try {
       const newSel: Selection = { ...selection };
+      // Fjern spilleren fra den spesifikke posisjonen
       newSel[pos] = newSel[pos].filter((name) => name !== playerName);
+
       setSelection(newSel);
       if (auth.currentUser) {
         await setDoc(doc(db, "teams", auth.currentUser.uid), newSel);
-        showNotification(`${playerName} fjernet fra ${pos}`, "info");
+        showNotification(
+          `${playerName} fjernet fra ${pos} og lagt tilbake i tilgjengelige spillere`,
+          "info"
+        );
       }
     } catch (error) {
       console.error("Error removing player:", error);
@@ -242,6 +252,7 @@ export default function Dashboard() {
     }
   };
 
+  // Beregn tilgjengelige spillere (spillere som ikke er valgt til noen posisjon)
   const available = filteredPlayers.filter(
     (p) => !POSITIONS.some((pos) => selection[pos].includes(p.name))
   );
@@ -298,38 +309,6 @@ export default function Dashboard() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Datakilde informasjon */}
-        {dataSource && (
-          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <div className="flex items-center gap-2 text-blue-800">
-              <span className="text-lg">
-                {dataSource === "google-sheets" ? "📊" : "⚠️"}
-              </span>
-              <span className="font-medium text-blue-900">
-                {dataSource === "google-sheets"
-                  ? "NTNUI Påmelding"
-                  : "Eksempel-data"}
-              </span>
-            </div>
-            {dataMessage && (
-              <p className="text-blue-700 text-sm mt-1">{dataMessage}</p>
-            )}
-            {totalRegistrations > 0 && (
-              <p className="text-blue-700 text-sm mt-1">
-                Totalt {totalRegistrations} påmeldinger
-              </p>
-            )}
-            {dataSource === "fallback" && (
-              <p className="text-blue-700 text-sm mt-2">
-                For å bruke dine egne spillere, konfigurer Google Sheets i{" "}
-                <code className="bg-blue-100 px-1 rounded text-blue-900">
-                  .env.local
-                </code>
-              </p>
-            )}
-          </div>
-        )}
-
         {/* Statistikk */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <StatsCard
@@ -499,13 +478,13 @@ export default function Dashboard() {
           <div
             className="bg-white rounded-xl shadow-sm overflow-hidden animate-fade-in"
             style={{ animationDelay: "0.2s" }}>
-            <div className="bg-gradient-to-r from-green-500 to-green-600 px-6 py-4">
+            <div className="bg-gradient-to-r from-purple-500 to-pink-600 px-6 py-4">
               <h2 className="text-xl font-semibold text-white flex items-center gap-2">
                 <span>🏆</span>
                 Laguttak
               </h2>
             </div>
-            <div className="p-6">
+            <div className="p-6 bg-gradient-to-br from-purple-50 to-pink-50">
               <div className="space-y-6">
                 {POSITIONS.map((pos) => (
                   <PositionSection
