@@ -20,7 +20,7 @@ export default function PlayerCard({
   id,
 }: PlayerCardProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
-    useDraggable({  
+    useDraggable({
       id: id,
       data: {
         player: player,
@@ -49,7 +49,7 @@ export default function PlayerCard({
       <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold">
         {player.name.charAt(0)}
       </div>
-      <span className="flex-1 font-medium">{player.name}</span>
+      <span className="flex-1 font-medium text-gray-800">{player.name}</span>
       <select
         className="border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 font-medium text-gray-700 hover:border-blue-400"
         defaultValue=""
