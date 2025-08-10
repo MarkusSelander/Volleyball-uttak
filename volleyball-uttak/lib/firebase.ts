@@ -3,6 +3,7 @@ import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChang
 import { getFirestore, type Firestore } from 'firebase/firestore';
 
 const firebaseConfig = {
+
   apiKey: 'AIzaSyDjr446XPjcDNoslcMAl6swH81A0SDNoOo',
   authDomain: 'volleyball-d2c.firebaseapp.com',
   projectId: 'volleyball-d2c',
