@@ -7,6 +7,7 @@ Nettside for å velge spillere fra et Google-regneark og lagre uttaket i Firebas
 Lag en fil `.env.local` i prosjektroten med følgende variabler:
 
 ```
+
 GOOGLE_SERVICE_ACCOUNT_EMAIL=markus.alexander.selander@gmail.com
 GOOGLE_PRIVATE_KEY=
 GOOGLE_SHEET_ID=
