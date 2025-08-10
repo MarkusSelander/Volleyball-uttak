@@ -40,6 +40,9 @@ const emptySelection: Selection = {
   Kant: [],
 };
 
+// Legg til potensielle spillere state
+const emptyPotentialPlayers: string[] = [];
+
 const positionColors = {
   Midt: "bg-blue-500",
   Dia: "bg-green-500",
@@ -73,6 +76,9 @@ const positionMapping: Record<string, Position[]> = {
 export default function Dashboard() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [selection, setSelection] = useState<Selection>(emptySelection);
+  const [potentialPlayers, setPotentialPlayers] = useState<string[]>(
+    emptyPotentialPlayers
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [dataSource, setDataSource] = useState<string>("");
@@ -138,7 +144,14 @@ export default function Dashboard() {
       try {
         const ref = doc(db, "teams", user.uid);
         const snap = await getDoc(ref);
-        if (snap.exists()) setSelection(snap.data() as Selection);
+        if (snap.exists()) {
+          const data = snap.data();
+          setSelection(data as Selection);
+          // Last potensielle spillere hvis de finnes
+          if (data.potentialPlayers) {
+            setPotentialPlayers(data.potentialPlayers);
+          }
+        }
       } catch (error) {
         console.error("Error loading selection:", error);
         showNotification("Feil ved lasting av data", "error");
@@ -213,12 +226,21 @@ export default function Dashboard() {
         newSel[p] = newSel[p].filter((n) => n !== player.name);
       }
 
+      // Fjern spilleren fra potensielle spillere hvis de er der
+      const newPotentialPlayers = potentialPlayers.filter(
+        (name) => name !== player.name
+      );
+      setPotentialPlayers(newPotentialPlayers);
+
       // Legg til spilleren i den valgte posisjonen
       newSel[pos] = [...newSel[pos], player.name];
 
       setSelection(newSel);
       if (auth.currentUser) {
-        await setDoc(doc(db, "teams", auth.currentUser.uid), newSel);
+        await setDoc(doc(db, "teams", auth.currentUser.uid), {
+          ...newSel,
+          potentialPlayers: newPotentialPlayers,
+        });
         showNotification(`${player.name} lagt til som ${pos}`, "success");
       }
     } catch (error) {
@@ -238,7 +260,10 @@ export default function Dashboard() {
 
       setSelection(newSel);
       if (auth.currentUser) {
-        await setDoc(doc(db, "teams", auth.currentUser.uid), newSel);
+        await setDoc(doc(db, "teams", auth.currentUser.uid), {
+          ...newSel,
+          potentialPlayers,
+        });
         showNotification(
           `${playerName} fjernet fra ${pos} og lagt tilbake i tilgjengelige spillere`,
           "info"
@@ -252,9 +277,61 @@ export default function Dashboard() {
     }
   };
 
-  // Beregn tilgjengelige spillere (spillere som ikke er valgt til noen posisjon)
+  const addToPotential = async (player: Player) => {
+    setIsSaving(true);
+    try {
+      const newPotentialPlayers = [...potentialPlayers, player.name];
+      setPotentialPlayers(newPotentialPlayers);
+
+      if (auth.currentUser) {
+        await setDoc(doc(db, "teams", auth.currentUser.uid), {
+          ...selection,
+          potentialPlayers: newPotentialPlayers,
+        });
+        showNotification(
+          `${player.name} lagt til i potensielle spillere`,
+          "success"
+        );
+      }
+    } catch (error) {
+      console.error("Error adding to potential:", error);
+      showNotification("Feil ved lagring av potensielle spiller", "error");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const removeFromPotential = async (playerName: string) => {
+    setIsSaving(true);
+    try {
+      const newPotentialPlayers = potentialPlayers.filter(
+        (name) => name !== playerName
+      );
+      setPotentialPlayers(newPotentialPlayers);
+
+      if (auth.currentUser) {
+        await setDoc(doc(db, "teams", auth.currentUser.uid), {
+          ...selection,
+          potentialPlayers: newPotentialPlayers,
+        });
+        showNotification(
+          `${playerName} fjernet fra potensielle spillere`,
+          "info"
+        );
+      }
+    } catch (error) {
+      console.error("Error removing from potential:", error);
+      showNotification("Feil ved fjerning av potensielle spiller", "error");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Beregn tilgjengelige spillere (spillere som ikke er valgt til noen posisjon eller potensielle)
   const available = filteredPlayers.filter(
-    (p) => !POSITIONS.some((pos) => selection[pos].includes(p.name))
+    (p) =>
+      !POSITIONS.some((pos) => selection[pos].includes(p.name)) &&
+      !potentialPlayers.includes(p.name)
   );
 
   const totalSelected = POSITIONS.reduce(
@@ -330,14 +407,14 @@ export default function Dashboard() {
             color="bg-yellow-100"
           />
           <StatsCard
-            title="Posisjoner"
-            value={POSITIONS.length}
-            icon="🎯"
-            color="bg-purple-100"
+            title="Potensielle"
+            value={potentialPlayers.length}
+            icon="⭐"
+            color="bg-orange-100"
           />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Tilgjengelige spillere */}
           <div className="bg-white rounded-xl shadow-sm overflow-hidden animate-fade-in">
             <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-4">
@@ -384,7 +461,7 @@ export default function Dashboard() {
                   <p className="text-gray-700">
                     {searchTerm
                       ? "Ingen spillere funnet"
-                      : "Alle spillere er valgt til lag!"}
+                      : "Alle spillere er valgt til lag eller potensielle!"}
                   </p>
                 </div>
               ) : (
@@ -465,10 +542,73 @@ export default function Dashboard() {
                               </option>
                             ))}
                           </select>
+                          <button
+                            onClick={() => addToPotential(player)}
+                            disabled={isSaving}
+                            className="px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-sm font-medium"
+                            title="Legg til som potensielle spiller">
+                            ⭐
+                          </button>
                         </div>
                       </div>
                     );
                   })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Potensielle spillere */}
+          <div
+            className="bg-white rounded-xl shadow-sm overflow-hidden animate-fade-in"
+            style={{ animationDelay: "0.1s" }}>
+            <div className="bg-gradient-to-r from-orange-500 to-yellow-600 px-6 py-4">
+              <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                <span>⭐</span>
+                Potensielle spillere
+              </h2>
+            </div>
+            <div className="p-6 bg-gradient-to-br from-orange-50 to-yellow-50">
+              {potentialPlayers.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <span className="text-4xl mb-4 block">⭐</span>
+                  <p className="text-gray-700">
+                    Ingen potensielle spillere valgt
+                  </p>
+                  <p className="text-sm text-gray-500 mt-2">
+                    Klikk ⭐ for å legge til spillere
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {potentialPlayers.map((playerName, index) => (
+                    <div
+                      key={playerName}
+                      className="flex items-center justify-between p-3 bg-gradient-to-r from-orange-50 to-yellow-50 border border-orange-200 rounded-lg animate-slide-in shadow-sm hover:shadow-md transition-all duration-200"
+                      style={{ animationDelay: `${index * 0.1}s` }}>
+                      <span className="font-semibold text-gray-800">
+                        {playerName}
+                      </span>
+                      <button
+                        onClick={() => removeFromPotential(playerName)}
+                        disabled={isSaving}
+                        className="text-red-500 hover:text-red-700 p-2 rounded-full transition-colors hover:bg-red-50 hover:scale-110"
+                        title="Fjern fra potensielle">
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24">
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
