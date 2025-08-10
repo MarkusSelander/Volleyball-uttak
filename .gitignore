@@ -1,0 +1,5 @@
+
+# Secrets
+*-credentials.json
+*.secret.json
+service-account*.json
