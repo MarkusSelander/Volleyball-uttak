@@ -20,7 +20,7 @@ export default function PlayerCard({
   id,
 }: PlayerCardProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
-    useDraggable({
+    useDraggable({  
       id: id,
       data: {
         player: player,
