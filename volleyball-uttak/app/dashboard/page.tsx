@@ -4,10 +4,10 @@ import { auth, db, onAuthStateChanged } from "@/lib/firebase";
 import {
   DndContext,
   DragEndEvent,
+  MouseSensor,
+  TouchSensor,
   useDraggable,
   useDroppable,
-  TouchSensor,
-  MouseSensor,
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
@@ -1085,11 +1085,14 @@ export default function Dashboard() {
   };
 
   return (
-    <DndContext 
+    <DndContext
       onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd} 
+      onDragEnd={handleDragEnd}
       sensors={sensors}>
-      <div className="min-h-screen bg-gray-50" data-dnd-context="true" data-dragging={isDragging}>
+      <div
+        className="min-h-screen bg-gray-50"
+        data-dnd-context="true"
+        data-dragging={isDragging}>
         {/* Header */}
         <NavHeader
           title="NTNUI Volleyball Uttak"

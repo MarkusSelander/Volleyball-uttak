@@ -41,8 +41,8 @@ export default function PositionSection({
     <div
       ref={setDroppableRef}
       className={`border-l-4 pl-4 py-2 transition-all duration-300 min-h-[80px] ${
-        isOver 
-          ? "border-blue-400 bg-blue-50 transform scale-102 shadow-md" 
+        isOver
+          ? "border-blue-400 bg-blue-50 transform scale-102 shadow-md"
           : "border-gray-200"
       }`}
       data-drop-target={isOver}>
@@ -59,9 +59,10 @@ export default function PositionSection({
         </span>
       </h3>
       {players.length === 0 ? (
-        <div className={`text-white/70 italic p-4 rounded-lg border-2 border-dashed transition-all ${
-          isOver ? "border-blue-300 bg-blue-100/50" : "border-white/30"
-        }`}>
+        <div
+          className={`text-white/70 italic p-4 rounded-lg border-2 border-dashed transition-all ${
+            isOver ? "border-blue-300 bg-blue-100/50" : "border-white/30"
+          }`}>
           {isOver ? "Slipp spilleren her" : "Ingen spillere valgt"}
         </div>
       ) : (
@@ -152,9 +153,9 @@ function DraggablePlayer({
           {...attributes}
           {...listeners}
           onClick={(e) => e.stopPropagation()}>
-          <svg 
-            className="w-5 h-5 md:w-4 md:h-4 pointer-events-none" 
-            viewBox="0 0 20 20" 
+          <svg
+            className="w-5 h-5 md:w-4 md:h-4 pointer-events-none"
+            viewBox="0 0 20 20"
             fill="currentColor">
             <path d="M7 4a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 8a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 12a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 16a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2z" />
           </svg>
