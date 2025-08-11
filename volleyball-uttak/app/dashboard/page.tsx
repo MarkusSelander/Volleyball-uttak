@@ -716,6 +716,11 @@ export default function Dashboard() {
               </div>
               <div className="flex items-center gap-2">
                 <Link
+                  href="/uttak"
+                  className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors">
+                  Uttak
+                </Link>
+                <Link
                   href="/spiller-info"
                   className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors">
                   Spiller info

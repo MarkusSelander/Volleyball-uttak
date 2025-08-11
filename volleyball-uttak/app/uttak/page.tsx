@@ -1,12 +1,14 @@
 "use client";
 
-import { auth, signOut } from "@/lib/firebase";
+import { auth, db, onAuthStateChanged, signOut } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import LoadingSpinner from "../components/LoadingSpinner";
-import Image from "next/image";
 
-// Simple filter operators similar to Excel
+// Filter operators (same as Spiller info)
 const OPS = [
   { value: "contains", label: "Inneholder" },
   { value: "equals", label: "Er lik" },
@@ -25,7 +27,12 @@ type Filter = { op: Op; value: string };
 
 type FilterMap = Record<string, Filter | undefined>;
 
-// Friendly labels for known keys
+const POSITIONS = ["Midt", "Dia", "Legger", "Libero", "Kant"] as const;
+type Position = (typeof POSITIONS)[number];
+
+type Selection = Record<Position, string[]>;
+
+// Pretty labels (same mapping as Spiller info)
 const LABELS: Record<string, string> = {
   rowNumber: "Rad",
   name: "Navn",
@@ -40,12 +47,11 @@ const LABELS: Record<string, string> = {
   previousTeam: "Tidligere lag",
   isStudent: "Student",
   level: "Nivå",
-  attendance: "Email", // per earlier request
+  attendance: "Email",
 };
 
 const prettyLabel = (key: string) => {
   if (LABELS[key]) return LABELS[key];
-  // insert space before capitals, replace separators, and capitalize first letter
   const s = key
     .replace(/[_-]+/g, " ")
     .replace(/([a-z])([A-Z])/g, "$1 $2")
@@ -53,68 +59,113 @@ const prettyLabel = (key: string) => {
   return s.charAt(0).toUpperCase() + s.slice(1);
 };
 
-export default function SpillerInfoPage() {
+export default function UttakPage() {
+  const router = useRouter();
+
   const [rows, setRows] = useState<Record<string, any>[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string>("");
   const [filters, setFilters] = useState<FilterMap>({});
   const [openFilterFor, setOpenFilterFor] = useState<string | null>(null);
+  const [selection, setSelection] = useState<Selection | null>(null);
+  const [playersLoading, setPlayersLoading] = useState(true);
+  const [selectionLoading, setSelectionLoading] = useState(true);
+  const [error, setError] = useState<string>("");
 
+  // Fetch spreadsheet rows
   useEffect(() => {
-    const fetchAll = async () => {
+    let cancelled = false;
+    const load = async () => {
       try {
         const res = await fetch("/api/players");
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        if (
-          Array.isArray(data?.detailedPlayers) &&
-          data.detailedPlayers.length
-        ) {
-          setRows(data.detailedPlayers);
+        if (Array.isArray(data?.detailedPlayers) && data.detailedPlayers.length) {
+          if (!cancelled) setRows(data.detailedPlayers);
         } else if (Array.isArray(data?.players)) {
-          // Fallback: bare navn
-          setRows(data.players.map((p: any) => ({ name: p.name })));
+          if (!cancelled) setRows(data.players.map((p: any) => ({ name: p.name })));
         } else {
-          setRows([]);
+          if (!cancelled) setRows([]);
         }
-      } catch (e: any) {
+      } catch (e) {
         console.error(e);
-        setError("Kunne ikke hente data fra spreadsheet");
+        if (!cancelled) setError("Kunne ikke hente data fra spreadsheet");
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setPlayersLoading(false);
       }
     };
-    fetchAll();
+    load();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // Build visible columns (remove 'email' and 'level', rename 'attendance' label to 'Email')
+  // Fetch user selection from Firestore
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        router.replace("/login");
+        return;
+      }
+      try {
+        const ref = doc(db, "teams", user.uid);
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          const data = snap.data() as Selection & { potentialPlayers?: string[] };
+          // Ensure all keys exist
+          const empty: Selection = { Midt: [], Dia: [], Legger: [], Libero: [], Kant: [] };
+          setSelection({ ...empty, ...data });
+        } else {
+          setSelection({ Midt: [], Dia: [], Legger: [], Libero: [], Kant: [] });
+        }
+      } catch (e) {
+        console.error(e);
+        setError("Kunne ikke hente laguttak");
+        setSelection({ Midt: [], Dia: [], Legger: [], Libero: [], Kant: [] });
+      } finally {
+        setSelectionLoading(false);
+      }
+    });
+    return () => unsub();
+  }, [router]);
+
+  const isLoading = playersLoading || selectionLoading;
+
+  // Set of selected names
+  const selectedNameSet = useMemo(() => {
+    const set = new Set<string>();
+    if (!selection) return set;
+    for (const pos of POSITIONS) {
+      for (const n of selection[pos] || []) set.add(n);
+    }
+    return set;
+  }, [selection]);
+
+  // Selected rows from spreadsheet
+  const baseRows = useMemo(() => {
+    if (!rows.length || selectedNameSet.size === 0) return [] as Record<string, any>[];
+    return rows.filter((r) => selectedNameSet.has(String((r as any).name)));
+  }, [rows, selectedNameSet]);
+
+  // Columns (same as Spiller info). Exclude email + level, keep narrow for rowNumber
   const columns = useMemo(() => {
-    if (!rows.length)
-      return [] as { key: string; label: string; narrow?: boolean }[];
-    const keys = Object.keys(rows[0] || {});
-
+    const source = baseRows.length ? baseRows : rows;
+    if (!source.length) return [] as { key: string; label: string; narrow?: boolean }[];
+    const keys = Object.keys(source[0] || {});
     const exclude = new Set(["email", "level"]);
-    const preferred = ["rowNumber", "name"]; // keep first if present
-
+    const preferred = ["rowNumber", "name"];
     const order = [
       ...preferred.filter((k) => keys.includes(k)),
       ...keys.filter((k) => !preferred.includes(k)),
     ].filter((k) => !exclude.has(k.toLowerCase()));
+    return order.map((k) => ({ key: k, label: prettyLabel(k), narrow: k === "rowNumber" }));
+  }, [rows, baseRows]);
 
-    return order.map((k) => ({
-      key: k,
-      label: prettyLabel(k),
-      narrow: k === "rowNumber",
-    }));
-  }, [rows]);
-
+  // Apply filters on baseRows
   const filteredRows = useMemo(() => {
-    if (!rows.length) return rows;
+    const data = baseRows;
+    if (!data.length) return data;
 
-    const active = Object.entries(filters).filter(
-      ([, f]) => f && f.value !== ""
-    );
-    if (!active.length) return rows;
+    const active = Object.entries(filters).filter(([, f]) => f && f.value !== "");
+    if (!active.length) return data;
 
     const toNum = (v: any) => {
       const n = Number(v);
@@ -125,7 +176,6 @@ export default function SpillerInfoPage() {
       if (cell === null || cell === undefined) return false;
       const str = String(cell).toLowerCase();
       const val = f.value.toLowerCase();
-
       switch (f.op) {
         case "contains":
           return str.includes(val);
@@ -162,10 +212,10 @@ export default function SpillerInfoPage() {
       }
     };
 
-    return rows.filter((row) =>
+    return data.filter((row) =>
       active.every(([col, f]) => match((row as any)[col], f as Filter))
     );
-  }, [rows, filters]);
+  }, [baseRows, filters]);
 
   const setFilter = (col: string, patch: Partial<Filter>) => {
     setFilters((prev) => {
@@ -199,24 +249,27 @@ export default function SpillerInfoPage() {
                 priority
               />
               <div>
-                <h1 className="text-2xl font-bold text-white">Spiller info</h1>
-                <p className="text-white/90">Fullt spreadsheet</p>
+                <h1 className="text-2xl font-bold text-white">Uttak</h1>
+                <p className="text-white/90">Spillere valgt i laguttak</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <Link
                 href="/dashboard"
-                className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors">
+                className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
+              >
                 Dashboard
               </Link>
               <Link
-                href="/uttak"
-                className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors">
-                Uttak
+                href="/spiller-info"
+                className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
+              >
+                Spiller info
               </Link>
               <button
                 onClick={() => signOut(auth)}
-                className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors">
+                className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
+              >
                 Logg ut
               </button>
             </div>
@@ -227,7 +280,7 @@ export default function SpillerInfoPage() {
       <main className="max-w-screen-2xl mx-auto px-2 py-8">
         {isLoading ? (
           <div className="min-h-[50vh] flex items-center justify-center">
-            <LoadingSpinner size="lg" text="Laster spreadsheet..." />
+            <LoadingSpinner size="lg" text="Laster uttak..." />
           </div>
         ) : error ? (
           <div className="p-4 bg-red-50 text-red-700 border border-red-200 rounded-lg">
@@ -235,22 +288,21 @@ export default function SpillerInfoPage() {
           </div>
         ) : (
           <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-            <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-white">
-                NTNUI Volleyball – Spreadsheet
-              </h2>
+            <div className="bg-gradient-to-r from-purple-500 to-pink-600 px-6 py-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-white">Uttatte spillere</h2>
               {anyFilterActive && (
                 <button
                   onClick={() => setFilters({})}
                   className="text-sm px-3 py-1 rounded bg-white/20 hover:bg-white/30 text-white"
-                  title="Fjern alle filtre">
+                  title="Fjern alle filtre"
+                >
                   Tøm filtre
                 </button>
               )}
             </div>
             <div className="p-4 overflow-x-auto">
               {filteredRows.length === 0 ? (
-                <p className="text-gray-600">Ingen rader matcher filtrene.</p>
+                <p className="text-gray-600">Ingen spillere er tatt ut ennå.</p>
               ) : (
                 <table className="min-w-full table-fixed text-sm">
                   <thead className="bg-gray-100 sticky top-0 z-10">
@@ -259,33 +311,28 @@ export default function SpillerInfoPage() {
                         <th
                           key={col.key}
                           className="text-left font-semibold text-gray-700 px-3 py-2 whitespace-nowrap border-b align-top relative"
-                          style={col.narrow ? { width: "1%" } : undefined}>
+                          style={col.narrow ? { width: "1%" } : undefined}
+                        >
                           <div
                             className={
                               col.narrow
                                 ? "flex items-center gap-2"
                                 : "flex items-center gap-2 max-w-[240px] truncate"
                             }
-                            title={col.label}>
+                            title={col.label}
+                          >
                             <span className="truncate">{col.label}</span>
                             <button
                               className={`p-1 rounded hover:bg-gray-200 ${
-                                filters[col.key]?.value
-                                  ? "text-blue-600"
-                                  : "text-gray-600"
+                                filters[col.key]?.value ? "text-blue-600" : "text-gray-600"
                               }`}
                               title="Filter"
                               onClick={() =>
-                                setOpenFilterFor((p) =>
-                                  p === col.key ? null : col.key
-                                )
+                                setOpenFilterFor((p) => (p === col.key ? null : col.key))
                               }
-                              type="button">
-                              <svg
-                                className="w-4 h-4"
-                                viewBox="0 0 24 24"
-                                fill="currentColor"
-                                aria-hidden="true">
+                              type="button"
+                            >
+                              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M3 5h18l-7 8v6l-4 2v-8L3 5z" />
                               </svg>
                             </button>
@@ -296,11 +343,8 @@ export default function SpillerInfoPage() {
                                 <select
                                   className="w-40 border border-gray-300 rounded px-2 py-1 text-sm"
                                   value={filters[col.key]?.op || "contains"}
-                                  onChange={(e) =>
-                                    setFilter(col.key, {
-                                      op: e.target.value as Op,
-                                    })
-                                  }>
+                                  onChange={(e) => setFilter(col.key, { op: e.target.value as Op })}
+                                >
                                   {OPS.map((o) => (
                                     <option key={o.value} value={o.value}>
                                       {o.label}
@@ -311,7 +355,8 @@ export default function SpillerInfoPage() {
                                   className="ml-auto text-gray-500 hover:text-gray-700"
                                   onClick={() => setOpenFilterFor(null)}
                                   title="Lukk"
-                                  type="button">
+                                  type="button"
+                                >
                                   ✕
                                 </button>
                               </div>
@@ -319,9 +364,7 @@ export default function SpillerInfoPage() {
                                 className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
                                 placeholder="Verdi..."
                                 value={filters[col.key]?.value || ""}
-                                onChange={(e) =>
-                                  setFilter(col.key, { value: e.target.value })
-                                }
+                                onChange={(e) => setFilter(col.key, { value: e.target.value })}
                               />
                               <div className="flex gap-2 justify-end mt-3">
                                 <button
@@ -330,13 +373,15 @@ export default function SpillerInfoPage() {
                                     clearFilter(col.key);
                                     setOpenFilterFor(null);
                                   }}
-                                  type="button">
+                                  type="button"
+                                >
                                   Nullstill
                                 </button>
                                 <button
-                                  className="px-2 py-1 text-sm rounded bg-blue-600 text-white hover:bg-blue-700"
+                                  className="px-2 py-1 text-sm rounded bg-purple-600 text-white hover:bg-purple-700"
                                   onClick={() => setOpenFilterFor(null)}
-                                  type="button">
+                                  type="button"
+                                >
                                   Bruk
                                 </button>
                               </div>
@@ -348,9 +393,7 @@ export default function SpillerInfoPage() {
                   </thead>
                   <tbody>
                     {filteredRows.map((row, i) => (
-                      <tr
-                        key={i}
-                        className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                      <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
                         {columns.map((col) => {
                           const v = (row as any)[col.key];
                           const value =
@@ -368,7 +411,8 @@ export default function SpillerInfoPage() {
                                   : "px-3 py-2 text-gray-800 align-top whitespace-nowrap border-b max-w-[260px] truncate"
                               }
                               style={col.narrow ? { width: "1%" } : undefined}
-                              title={value}>
+                              title={value}
+                            >
                               {value}
                             </td>
                           );
