@@ -4,6 +4,7 @@ import { auth, signOut } from "@/lib/firebase";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import LoadingSpinner from "../components/LoadingSpinner";
+import Image from "next/image";
 
 // Simple filter operators similar to Excel
 const OPS = [
@@ -189,9 +190,14 @@ export default function SpillerInfoPage() {
         <div className="max-w-screen-2xl mx-auto px-2 py-6">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
-                <span className="text-2xl">📄</span>
-              </div>
+              <Image
+                src="/ntnui-logo.png"
+                alt="NTNUI logo"
+                width={120}
+                height={64}
+                className="rounded-md bg-white/20 p-2"
+                priority
+              />
               <div>
                 <h1 className="text-2xl font-bold text-white">Spiller info</h1>
                 <p className="text-white/90">Fullt spreadsheet</p>

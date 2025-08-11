@@ -16,6 +16,7 @@ import Notification from "../components/Notification";
 import PlayerCard from "../components/PlayerCard";
 import PositionSection from "../components/PositionSection";
 import StatsCard from "../components/StatsCard";
+import Image from "next/image";
 
 const POSITIONS = ["Midt", "Dia", "Legger", "Libero", "Kant"] as const;
 
@@ -695,12 +696,17 @@ export default function Dashboard() {
       <div className="min-h-screen bg-gray-50">
         {/* Header */}
         <header className="gradient-primary text-white shadow-lg">
-          <div className="max-w-screen-2xl mx-auto px-2 md:px-4 py-6">
+          <div className="max-w-screen-2xl mx-auto px-2 py-6">
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
-                  <span className="text-2xl">🏐</span>
-                </div>
+                <Image
+                  src="/ntnui-logo.png"
+                  alt="NTNUI logo"
+                  width={100} 
+                  height={64}
+                  className="rounded-md bg-white/20 p-2"
+                  priority
+                />
                 <div>
                   <h1 className="text-2xl font-bold text-white">
                     NTNUI Volleyball Uttak
