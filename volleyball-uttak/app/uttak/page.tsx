@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import LoadingSpinner from "../components/LoadingSpinner";
+import NavHeader from "../components/NavHeader";
 
 // Filter operators (same as Spiller info)
 const OPS = [
@@ -331,43 +332,10 @@ export default function UttakPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="gradient-primary text-white shadow-lg">
-        <div className="max-w-screen-2xl mx-auto px-2 py-6">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-4">
-              <Image
-                src="/ntnui-logo.png"
-                alt="NTNUI logo"
-                width={120}
-                height={64}
-                className="rounded-md bg-white/20 p-2"
-                priority
-              />
-              <div>
-                <h1 className="text-2xl font-bold text-white">Uttak</h1>
-                <p className="text-white/90">Spillere valgt i laguttak</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Link
-                href="/dashboard"
-                className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors">
-                Dashboard
-              </Link>
-              <Link
-                href="/spiller-info"
-                className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors">
-                Spiller info
-              </Link>
-              <button
-                onClick={() => signOut(auth)}
-                className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors">
-                Logg ut
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <NavHeader 
+        title="Uttak" 
+        subtitle="Spillere valgt i laguttak"
+      />
 
       <main className="max-w-screen-2xl mx-auto px-2 py-8">
         {isLoading ? (

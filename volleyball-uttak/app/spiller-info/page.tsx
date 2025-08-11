@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import LoadingSpinner from "../components/LoadingSpinner";
+import NavHeader from "../components/NavHeader";
 
 // Simple filter operators similar to Excel
 const OPS = [
@@ -253,45 +254,10 @@ export default function SpillerInfoPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="gradient-primary text-white shadow-lg">
-        <div className="w-full mx-auto px-4 py-4 sm:py-6">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-4">
-              <Image
-                src="/ntnui-logo.png"
-                alt="NTNUI logo"
-                width={100}
-                height={54}
-                className="rounded-md bg-white/20 p-2"
-                priority
-              />
-              <div>
-                <h1 className="text-lg sm:text-xl font-bold text-white">
-                  Spiller info
-                </h1>
-                <p className="text-white/90 text-sm">Fullt spreadsheet</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Link
-                href="/dashboard"
-                className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors">
-                Dashboard
-              </Link>
-              <Link
-                href="/uttak"
-                className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors">
-                Uttak
-              </Link>
-              <button
-                onClick={() => signOut(auth)}
-                className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors">
-                Logg ut
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <NavHeader 
+        title="Spiller info" 
+        subtitle="Fullt spreadsheet"
+      />
 
       <main className="w-full mx-auto px-2 sm:px-4 py-6 sm:py-8">
         {isLoading ? (
