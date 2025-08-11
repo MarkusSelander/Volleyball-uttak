@@ -93,13 +93,13 @@ export default function PlayerCard({
       </div>
 
       <span
-        className="flex-1 min-w-0 truncate font-medium text-gray-800 text-[13px] md:text-base"
+        className="flex-1 min-w-0 truncate font-medium text-gray-800 text-xs md:text-sm"
         title={player.name}>
         {player.name}
       </span>
 
       <select
-        className="border border-gray-300 rounded-lg px-1.5 md:px-2 py-1 md:py-1.5 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-[11px] md:text-sm font-medium text-gray-700 hover:border-blue-400 w-[92px] md:w-[122px]"
+        className="border border-gray-300 rounded-lg px-1.5 md:px-2 py-1 md:py-1.5 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-[10px] md:text-xs font-medium text-gray-700 hover:border-blue-400 w-[80px] md:w-[100px]"
         defaultValue=""
         onChange={(e) => onSelectPosition(e.target.value, player)}
         disabled={isSaving}

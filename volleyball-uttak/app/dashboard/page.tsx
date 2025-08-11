@@ -871,13 +871,13 @@ export default function Dashboard() {
         className={`border-l-4 pl-4 transition-all duration-200 ${
           isOver ? "border-blue-400 bg-blue-50" : "border-gray-200"
         }`}>
-        <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+        <h3 className="font-semibold text-sm mb-3 flex items-center gap-2">
           <span
-            className={`w-6 h-6 ${colorClass} rounded-full flex items-center justify-center text-white text-sm`}>
+            className={`w-5 h-5 ${colorClass} rounded-full flex items-center justify-center text-white text-xs`}>
             {icon}
           </span>
-          <span className="text-gray-800">{position}</span>
-          <span className="text-sm text-gray-600">({count})</span>
+          <span className="text-gray-800 text-sm">{position}</span>
+          <span className="text-xs text-gray-600">({count})</span>
         </h3>
         {children}
       </div>
@@ -941,13 +941,13 @@ export default function Dashboard() {
 
           {typeof rowNumber === "number" && (
             <span
-              className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-800 border border-gray-200 shrink-0"
+              className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-800 border border-gray-200 shrink-0"
               title={`Rad ${rowNumber}`}>
               #{rowNumber}
             </span>
           )}
 
-          <span className="font-semibold text-gray-800 truncate">
+          <span className="font-semibold text-gray-800 truncate text-sm">
             {playerName}
           </span>
         </div>
@@ -997,10 +997,10 @@ export default function Dashboard() {
                   priority
                 />
                 <div>
-                  <h1 className="text-2xl font-bold text-white">
+                  <h1 className="text-lg font-bold text-white">
                     NTNUI Volleyball Uttak
                   </h1>
-                  <p className="text-white/90">Lagadministrasjon</p>
+                  <p className="text-white/90 text-sm">Lagadministrasjon</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -1189,7 +1189,7 @@ export default function Dashboard() {
             {/* Tilgjengelige spillere */}
             <div className="bg-white rounded-xl shadow-sm overflow-hidden animate-fade-in md:order-1 md:col-span-1 lg:col-span-5">
               <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-4">
-                <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
                   <span>👥</span>
                   Tilgjengelige spillere
                 </h2>
@@ -1270,7 +1270,7 @@ export default function Dashboard() {
               className="bg-white rounded-xl shadow-sm overflow-hidden animate-fade-in md:order-3 md:col-span-2 lg:col-span-4"
               style={{ animationDelay: "0.1s" }}>
               <div className="bg-gradient-to-r from-orange-500 to-yellow-600 px-6 py-4">
-                <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
                   <span>⭐</span>
                   Potensielle spillere
                 </h2>
@@ -1364,7 +1364,7 @@ export default function Dashboard() {
               className="bg-white rounded-xl shadow-sm overflow-hidden animate-fade-in md:order-2 md:col-span-1 lg:col-span-5"
               style={{ animationDelay: "0.2s" }}>
               <div className="bg-gradient-to-r from-purple-500 to-pink-600 px-6 py-4">
-                <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
                   <span>🏆</span>
                   Laguttak
                 </h2>
@@ -1401,7 +1401,7 @@ export default function Dashboard() {
           {/* Spillere etter posisjon */}
           <div className="mt-8 bg-white rounded-xl shadow-sm overflow-hidden">
             <div className="bg-gradient-to-r from-indigo-500 to-blue-600 px-6 py-4">
-              <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
                 <span>📋</span>
                 Spillere etter ønsket posisjon
               </h2>
@@ -1446,13 +1446,15 @@ export default function Dashboard() {
 
                   return (
                     <div key={position} className="space-y-3">
-                      <h3 className="font-semibold text-lg flex items-center gap-2 pb-2 border-b border-gray-200">
+                      <h3 className="font-semibold text-sm flex items-center gap-2 pb-2 border-b border-gray-200">
                         <span
-                          className={`w-6 h-6 ${positionColors[position]} rounded-full flex items-center justify-center text-white text-sm`}>
+                          className={`w-5 h-5 ${positionColors[position]} rounded-full flex items-center justify-center text-white text-xs`}>
                           {positionIcons[position]}
                         </span>
-                        <span className="text-gray-800">{position}</span>
-                        <span className="text-sm text-gray-600">
+                        <span className="text-gray-800 text-sm">
+                          {position}
+                        </span>
+                        <span className="text-xs text-gray-600">
                           ({positionPlayers.length})
                         </span>
                       </h3>

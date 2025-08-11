@@ -254,20 +254,22 @@ export default function SpillerInfoPage() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="gradient-primary text-white shadow-lg">
-        <div className="max-w-screen-2xl mx-auto px-2 py-6">
+        <div className="w-full mx-auto px-4 py-4 sm:py-6">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-4">
               <Image
                 src="/ntnui-logo.png"
                 alt="NTNUI logo"
-                width={120}
-                height={64}
+                width={100}
+                height={54}
                 className="rounded-md bg-white/20 p-2"
                 priority
               />
               <div>
-                <h1 className="text-2xl font-bold text-white">Spiller info</h1>
-                <p className="text-white/90">Fullt spreadsheet</p>
+                <h1 className="text-lg sm:text-xl font-bold text-white">
+                  Spiller info
+                </h1>
+                <p className="text-white/90 text-sm">Fullt spreadsheet</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -291,7 +293,7 @@ export default function SpillerInfoPage() {
         </div>
       </header>
 
-      <main className="max-w-screen-2xl mx-auto px-2 py-8">
+      <main className="w-full mx-auto px-2 sm:px-4 py-6 sm:py-8">
         {isLoading ? (
           <div className="min-h-[50vh] flex items-center justify-center">
             <LoadingSpinner size="lg" text="Laster spreadsheet..." />
@@ -302,8 +304,8 @@ export default function SpillerInfoPage() {
           </div>
         ) : (
           <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-            <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-white">
+            <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
+              <h2 className="text-base sm:text-lg font-semibold text-white">
                 NTNUI Volleyball – Spreadsheet
               </h2>
               {anyFilterActive && (
@@ -319,19 +321,19 @@ export default function SpillerInfoPage() {
               {filteredRows.length === 0 ? (
                 <p className="text-gray-600">Ingen rader matcher filtrene.</p>
               ) : (
-                <table className="min-w-full table-fixed text-sm">
+                <table className="min-w-full table-fixed text-xs sm:text-sm">
                   <thead className="bg-gray-100 sticky top-0 z-10">
                     <tr>
                       {columns.map((col) => (
                         <th
                           key={col.key}
-                          className="text-left font-semibold text-gray-700 px-3 py-2 whitespace-nowrap border-b align-top relative"
+                          className="text-left font-semibold text-gray-700 px-2 sm:px-3 py-2 whitespace-nowrap border-b align-top relative text-xs sm:text-sm"
                           style={col.narrow ? { width: "1%" } : undefined}>
                           <div
                             className={
                               col.narrow
-                                ? "flex items-center gap-2"
-                                : "flex items-center gap-2 max-w-[240px] truncate"
+                                ? "flex items-center gap-1 sm:gap-2"
+                                : "flex items-center gap-1 sm:gap-2 max-w-[180px] sm:max-w-[240px] truncate"
                             }
                             title={col.label}>
                             <span className="truncate">{col.label}</span>
@@ -383,7 +385,7 @@ export default function SpillerInfoPage() {
                                 </button>
                               </div>
                               <input
-                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                                className="w-full border border-gray-300 rounded px-2 py-1 text-xs sm:text-sm"
                                 placeholder="Verdi..."
                                 value={filters[col.key]?.value || ""}
                                 onChange={(e) =>
@@ -427,8 +429,8 @@ export default function SpillerInfoPage() {
                                 key={col.key}
                                 className={
                                   col.narrow
-                                    ? "px-3 py-2 text-gray-800 align-top whitespace-nowrap border-b"
-                                    : "px-3 py-2 text-gray-800 align-top whitespace-nowrap border-b max-w-[260px] truncate"
+                                    ? "px-2 sm:px-3 py-2 text-gray-800 align-top whitespace-nowrap border-b text-xs sm:text-sm"
+                                    : "px-2 sm:px-3 py-2 text-gray-800 align-top whitespace-nowrap border-b max-w-[200px] sm:max-w-[260px] truncate text-xs sm:text-sm"
                                 }
                                 style={col.narrow ? { width: "1%" } : undefined}
                                 title={email}>
@@ -460,8 +462,8 @@ export default function SpillerInfoPage() {
                               key={col.key}
                               className={
                                 col.narrow
-                                  ? "px-3 py-2 text-gray-800 align-top whitespace-nowrap border-b"
-                                  : "px-3 py-2 text-gray-800 align-top whitespace-nowrap border-b max-w-[260px] truncate"
+                                  ? "px-2 sm:px-3 py-2 text-gray-800 align-top whitespace-nowrap border-b text-xs sm:text-sm"
+                                  : "px-2 sm:px-3 py-2 text-gray-800 align-top whitespace-nowrap border-b max-w-[200px] sm:max-w-[260px] truncate text-xs sm:text-sm"
                               }
                               style={col.narrow ? { width: "1%" } : undefined}
                               title={value}>

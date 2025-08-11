@@ -41,13 +41,13 @@ export default function PositionSection({
       className={`border-l-4 pl-4 transition-all duration-200 ${
         isOver ? "border-blue-400 bg-blue-50" : "border-gray-200"
       }`}>
-      <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+      <h3 className="font-semibold text-base mb-3 flex items-center gap-2">
         <span
-          className={`w-6 h-6 ${positionColors[position]} rounded-full flex items-center justify-center text-white text-sm`}>
+          className={`w-5 h-5 ${positionColors[position]} rounded-full flex items-center justify-center text-white text-xs`}>
           {positionIcons[position]}
         </span>
-        <span className="text-gray-800">{position}</span>
-        <span className="text-sm text-gray-600">({players.length})</span>
+        <span className="text-gray-800 text-sm">{position}</span>
+        <span className="text-xs text-gray-600">({players.length})</span>
       </h3>
       {players.length === 0 ? (
         <p className="text-gray-500 italic">Ingen spillere valgt</p>
@@ -142,13 +142,13 @@ function DraggablePlayer({
         </button>
         {typeof rowNumber === "number" && (
           <span
-            className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-800 border border-gray-200"
+            className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-800 border border-gray-200"
             title={`Rad ${rowNumber}`}>
             #{rowNumber}
           </span>
         )}
         <span
-          className="font-semibold text-gray-800 truncate text-sm md:text-base"
+          className="font-semibold text-gray-800 truncate text-xs md:text-sm"
           title={name}>
           {name}
         </span>
