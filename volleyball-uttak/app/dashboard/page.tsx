@@ -751,68 +751,62 @@ export default function Dashboard() {
     return (
       <div
         ref={setNodeRef}
-        className={`flex items-center gap-3 p-3 bg-white rounded-lg border border-orange-200 shadow-sm hover:shadow transition-all hover-lift ${
-          isDragging ? "opacity-60 scale-105" : ""
+        className={`min-w-0 flex items-center justify-between p-3 bg-gradient-to-r from-gray-50 to-white border border-gray-200 rounded-lg animate-slide-in shadow-sm hover:shadow-md transition-all duration-200 ${
+          isDragging ? "opacity-50 scale-105 shadow-lg" : ""
         }`}
-        style={{ animationDelay: `${index * 0.05}s`, ...style }}>
-        {/* Drag handle */}
-        <button
-          type="button"
-          className="p-1.5 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing"
-          aria-label="Dra for å flytte"
-          title="Dra for å flytte"
-          {...attributes}
-          {...listeners}
-          onClick={(e) => e.stopPropagation()}>
-          <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M7 4a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 8a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 12a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 16a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2z" />
-          </svg>
-        </button>
+        style={{ animationDelay: `${index * 0.1}s`, ...style }}>
+        <div className="min-w-0 flex items-center gap-2">
+          {/* Drag handle */}
+          <button
+            type="button"
+            className="p-1 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing shrink-0"
+            aria-label="Dra for å flytte"
+            title="Dra for å flytte"
+            {...attributes}
+            {...listeners}
+            onClick={(e) => e.stopPropagation()}>
+            <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M7 4a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 8a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 12a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 16a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2z" />
+            </svg>
+          </button>
 
-        {/* Row number badge when available */}
-        {typeof rowNumber === "number" && (
-          <span
-            className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 border border-orange-200"
-            title={`Rad ${rowNumber}`}>
-            #{rowNumber}
+          {typeof rowNumber === "number" && (
+            <span
+              className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-800 border border-gray-200 shrink-0"
+              title={`Rad ${rowNumber}`}>
+              #{rowNumber}
+            </span>
+          )}
+
+          <span className="font-semibold text-gray-800 truncate">
+            {playerName}
           </span>
-        )}
+        </div>
 
-        <span className="flex-1 font-medium text-gray-800">{playerName}</span>
-
-        <select
-          className="border border-gray-300 rounded-lg px-2.5 py-1 bg-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 text-sm font-medium text-gray-700 hover:border-purple-400"
-          defaultValue=""
-          onChange={(e) => {
-            const pos = e.target.value as Position;
-            if (pos) moveFromPotential(playerName, pos);
-          }}
-          disabled={isSaving}
-          onClick={(e) => e.stopPropagation()}>
-          <option value="" disabled>
-            Legg til i lag som...
-          </option>
-          {POSITIONS.map((pos) => (
-            <option key={pos} value={pos}>
-              {positionIcons[pos]} {pos}
-            </option>
-          ))}
-        </select>
-
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            removeFromPotential(playerName);
-          }}
-          disabled={isSaving}
-          className="ml-2 p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg border border-transparent hover:border-red-200 transition-colors"
-          title="Fjern fra potensielle"
-          aria-label="Fjern fra potensielle">
-          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M9 3v1H4v2h16V4h-5V3H9zm1 6v9h2V9h-2zm-4 0v9h2V9H6zm8 0v9h2V9h-2z" />
-          </svg>
-        </button>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              removeFromPotential(playerName);
+            }}
+            disabled={isSaving}
+            className="text-red-500 hover:text-red-700 p-1.5 md:p-2 rounded-full transition-colors hover:bg-red-50 hover:scale-110"
+            title="Fjern spiller"
+            type="button">
+            <svg
+              className="w-3.5 h-3.5 md:w-4 md:h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
       </div>
     );
   };

@@ -126,7 +126,7 @@ function DraggablePlayer({
         animationDelay: `${index * 0.1}s`,
         ...style,
       }}>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 min-w-0">
         {/* Drag handle */}
         <button
           type="button"
@@ -147,39 +147,24 @@ function DraggablePlayer({
             #{rowNumber}
           </span>
         )}
-        <span className="font-semibold text-gray-800">{name}</span>
+        <span
+          className="font-semibold text-gray-800 truncate text-sm md:text-base"
+          title={name}>
+          {name}
+        </span>
       </div>
-      <div className="flex items-center gap-2">
-        <select
-          className="border border-gray-300 rounded-lg px-2.5 py-1.5 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm font-medium text-gray-700 hover:border-blue-400"
-          defaultValue=""
-          onChange={(e) => {
-            if (e.target.value && e.target.value !== position) {
-              onMovePlayer(position, name, e.target.value);
-            }
-          }}
-          disabled={isSaving}
-          onClick={(e) => e.stopPropagation()}>
-          <option value="" disabled>
-            Flytt til
-          </option>
-          {positions.map((pos) => (
-            <option key={pos} value={pos} disabled={pos === position}>
-              {positionIcons[pos]} {pos}
-            </option>
-          ))}
-        </select>
+      <div className="flex items-center gap-1.5">
         <button
           onClick={(e) => {
             e.stopPropagation();
             onRemovePlayer(position, name);
           }}
           disabled={isSaving}
-          className="text-red-500 hover:text-red-700 p-2 rounded-full transition-colors hover:bg-red-50 hover:scale-110"
+          className="text-red-500 hover:text-red-700 p-1.5 md:p-2 rounded-full transition-colors hover:bg-red-50 hover:scale-110"
           title="Fjern spiller"
           type="button">
           <svg
-            className="w-4 h-4"
+            className="w-3.5 h-3.5 md:w-4 md:h-4"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24">
