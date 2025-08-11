@@ -18,7 +18,11 @@ export const metadata: Metadata = {
     "Administrer volleyball lag og spillere på en enkel og effektiv måte",
   keywords: ["volleyball", "lag", "spillere", "administrasjon", "uttak"],
   authors: [{ name: "Volleyball Uttak Team" }],
-  viewport: "width=device-width, initial-scale=1",
+};
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({

@@ -94,6 +94,16 @@ export default function Dashboard() {
   const [dataMessage, setDataMessage] = useState<string>("");
   const [totalRegistrations, setTotalRegistrations] = useState<number>(0);
   const [searchTerm, setSearchTerm] = useState<string>("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>("");
+
+  // Debounce search term for better performance
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
   const [filters, setFilters] = useState({
     gender: "all", // "all", "male", "female"
     isStudent: "all", // "all", "yes", "no"
@@ -148,32 +158,21 @@ export default function Dashboard() {
   const getFilteredPlayers = useCallback(
     (playerList: Player[]) => {
       return playerList.filter((player) => {
-        // Søketerm filter
-        if (searchTerm) {
-          const searchLower = searchTerm.toLowerCase();
+        // Søketerm filter (debounced for better performance)
+        if (debouncedSearchTerm) {
+          const searchLower = debouncedSearchTerm.toLowerCase();
           const nameMatch = player.name.toLowerCase().includes(searchLower);
           const rowMatch =
-            player.rowNumber?.toString().includes(searchTerm) || false;
+            player.rowNumber?.toString().includes(debouncedSearchTerm) || false;
           if (!nameMatch && !rowMatch) return false;
         }
 
         // Gender filter
         if (filters.gender !== "all") {
-          const genderLower = player.gender?.toLowerCase() || "";
-          if (
-            filters.gender === "male" &&
-            !genderLower.includes("mann") &&
-            !genderLower.includes("male") &&
-            !genderLower.includes("m")
-          )
+          const genderLower = player.gender?.toLowerCase().trim() || "";
+          if (filters.gender === "male" && genderLower !== "mann / male")
             return false;
-          if (
-            filters.gender === "female" &&
-            !genderLower.includes("kvinne") &&
-            !genderLower.includes("female") &&
-            !genderLower.includes("woman") &&
-            !genderLower.includes("k")
-          )
+          if (filters.gender === "female" && genderLower !== "kvinne / female")
             return false;
         }
 
@@ -253,7 +252,7 @@ export default function Dashboard() {
         return true;
       });
     },
-    [searchTerm, filters]
+    [debouncedSearchTerm, filters]
   );
 
   // Map for quick lookup of row numbers by player name
@@ -488,6 +487,57 @@ export default function Dashboard() {
 
     return uniquePlayers;
   }, [getFilteredPlayers, players, selection, potentialPlayers]);
+
+  // Memoized players by desired position for better performance
+  const playersByDesiredPosition = useMemo(() => {
+    const positionMap: Record<Position | "Ukjent", Player[]> = {
+      Midt: [],
+      Dia: [],
+      Legger: [],
+      Libero: [],
+      Kant: [],
+      Ukjent: [],
+    };
+
+    const filteredPlayers = getFilteredPlayers(players);
+
+    filteredPlayers.forEach((player) => {
+      // Sjekk om spilleren allerede er valgt til lag eller potensielle
+      const isInTeam = POSITIONS.some((pos) =>
+        selection[pos].includes(player.name)
+      );
+      const isPotential = potentialPlayers.includes(player.name);
+
+      // Vis bare spillere som ikke er valgt enda
+      if (isInTeam || isPotential) return;
+
+      if (!player.desiredPositions) return;
+
+      const mapped = mapPositions(player.desiredPositions);
+      mapped.forEach((position) => {
+        if (position in positionMap) {
+          positionMap[position as Position].push(player);
+        }
+      });
+    });
+
+    // Sort and deduplicate each position
+    Object.keys(positionMap).forEach((pos) => {
+      const position = pos as Position | "Ukjent";
+      positionMap[position] = positionMap[position]
+        .sort((a, b) => {
+          const rowA = a.rowNumber || Infinity;
+          const rowB = b.rowNumber || Infinity;
+          return rowA - rowB;
+        })
+        .filter((player, index, array) => {
+          const firstIndex = array.findIndex((p) => p.name === player.name);
+          return index === firstIndex;
+        });
+    });
+
+    return positionMap;
+  }, [getFilteredPlayers, players, selection, potentialPlayers, mapPositions]);
 
   // Stateful grupper for potensielle spillere (flytting mellom grupper i UI)
   type PotentialGroups = Record<
@@ -1220,8 +1270,14 @@ export default function Dashboard() {
                   </div>
                   {searchTerm && (
                     <p className="text-sm text-gray-600 mt-2">
-                      Viser {available.length} av{" "}
-                      {getFilteredPlayers(players).length} spillere
+                      {debouncedSearchTerm === searchTerm
+                        ? `Viser ${
+                            available.slice(
+                              0,
+                              searchTerm ? available.length : 50
+                            ).length
+                          } av ${available.length} spillere`
+                        : `Søker...`}
                     </p>
                   )}
                 </div>
@@ -1242,22 +1298,36 @@ export default function Dashboard() {
                       </div>
                     ) : (
                       <div className="space-y-3 pb-2">
-                        {available.map((player, index) => (
-                          <PlayerCard
-                            key={`${player.name}-${player.rowNumber || index}`}
-                            player={player}
-                            positions={POSITIONS}
-                            positionIcons={positionIcons}
-                            onSelectPosition={(
-                              pos: string,
-                              player: { name: string }
-                            ) => updateSelection(pos as Position, player)}
-                            onAddPotential={(p) => addToPotential(p as Player)}
-                            isSaving={isSaving}
-                            index={index}
-                            id={`available-${player.name}`}
-                          />
-                        ))}
+                        {/* Virtual rendering - kun vis første 50 spillere for bedre ytelse */}
+                        {available
+                          .slice(0, searchTerm ? available.length : 50)
+                          .map((player, index) => (
+                            <PlayerCard
+                              key={`${player.name}-${
+                                player.rowNumber || index
+                              }`}
+                              player={player}
+                              positions={POSITIONS}
+                              positionIcons={positionIcons}
+                              onSelectPosition={(
+                                pos: string,
+                                player: { name: string }
+                              ) => updateSelection(pos as Position, player)}
+                              onAddPotential={(p) =>
+                                addToPotential(p as Player)
+                              }
+                              isSaving={isSaving}
+                              index={index}
+                              id={`available-${player.name}`}
+                            />
+                          ))}
+                        {available.length > 50 && !searchTerm && (
+                          <div className="text-center py-4 text-gray-600 text-sm bg-blue-50 rounded-lg">
+                            Viser første 50 av {available.length} spillere.
+                            <br />
+                            Bruk søkefeltet for å finne spesifikke spillere.
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1267,15 +1337,15 @@ export default function Dashboard() {
 
             {/* Potensielle spillere */}
             <div
-              className="bg-white rounded-xl shadow-sm overflow-hidden animate-fade-in md:order-3 md:col-span-2 lg:col-span-4"
+              className="bg-gradient-to-br from-orange-500 via-orange-400 to-yellow-500 rounded-xl shadow-sm overflow-hidden animate-fade-in md:order-3 md:col-span-2 lg:col-span-4"
               style={{ animationDelay: "0.1s" }}>
-              <div className="bg-gradient-to-r from-orange-500 to-yellow-600 px-6 py-4">
+              <div className="bg-black/10 px-6 py-4">
                 <h2 className="text-lg font-semibold text-white flex items-center gap-2">
                   <span>⭐</span>
                   Potensielle spillere
                 </h2>
               </div>
-              <div className="p-6 bg-gradient-to-br from-orange-50 to-yellow-50">
+              <div className="p-6 bg-white/20 backdrop-blur-sm">
                 <PotentialDropZone>
                   {potentialPlayers.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
@@ -1361,15 +1431,15 @@ export default function Dashboard() {
 
             {/* Laguttak */}
             <div
-              className="bg-white rounded-xl shadow-sm overflow-hidden animate-fade-in md:order-2 md:col-span-1 lg:col-span-5"
+              className="bg-gradient-to-br from-purple-500 via-purple-400 to-pink-500 rounded-xl shadow-sm overflow-hidden animate-fade-in md:order-2 md:col-span-1 lg:col-span-5"
               style={{ animationDelay: "0.2s" }}>
-              <div className="bg-gradient-to-r from-purple-500 to-pink-600 px-6 py-4">
+              <div className="bg-black/10 px-6 py-4">
                 <h2 className="text-lg font-semibold text-white flex items-center gap-2">
                   <span>🏆</span>
                   Laguttak
                 </h2>
               </div>
-              <div className="p-6 bg-gradient-to-br from-purple-50 to-pink-50">
+              <div className="p-6 bg-white/20 backdrop-blur-sm">
                 <div className="space-y-6">
                   {POSITIONS.map((pos) => (
                     <PositionSection
@@ -1409,40 +1479,8 @@ export default function Dashboard() {
             <div className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                 {POSITIONS.map((position) => {
-                  const filteredPlayers = getFilteredPlayers(players)
-                    .filter((player) => {
-                      if (!player.desiredPositions) return false;
-
-                      // Sjekk om spilleren allerede er valgt til lag eller potensielle
-                      const isInTeam = POSITIONS.some((pos) =>
-                        selection[pos].includes(player.name)
-                      );
-                      const isPotential = potentialPlayers.includes(
-                        player.name
-                      );
-
-                      // Vis bare spillere som ikke er valgt enda
-                      if (isInTeam || isPotential) return false;
-
-                      const mapped = mapPositions(player.desiredPositions);
-                      return mapped.includes(position);
-                    })
-                    .sort((a, b) => {
-                      // Sorter etter radnummer (laveste først)
-                      const rowA = a.rowNumber || Infinity;
-                      const rowB = b.rowNumber || Infinity;
-                      return rowA - rowB;
-                    });
-
-                  // Fjern duplikater basert på navn (behold første/laveste radnummer)
-                  const positionPlayers = filteredPlayers.filter(
-                    (player, index, array) => {
-                      const firstIndex = array.findIndex(
-                        (p) => p.name === player.name
-                      );
-                      return index === firstIndex;
-                    }
-                  );
+                  const positionPlayers =
+                    playersByDesiredPosition[position] || [];
 
                   return (
                     <div key={position} className="space-y-3">

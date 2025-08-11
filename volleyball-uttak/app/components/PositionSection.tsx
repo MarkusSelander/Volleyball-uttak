@@ -43,14 +43,18 @@ export default function PositionSection({
       }`}>
       <h3 className="font-semibold text-base mb-3 flex items-center gap-2">
         <span
-          className={`w-5 h-5 ${positionColors[position]} rounded-full flex items-center justify-center text-white text-xs`}>
+          className={`w-5 h-5 ${positionColors[position]} rounded-full flex items-center justify-center text-white text-xs shadow-sm border border-white/20`}>
           {positionIcons[position]}
         </span>
-        <span className="text-gray-800 text-sm">{position}</span>
-        <span className="text-xs text-gray-600">({players.length})</span>
+        <span className="text-white text-sm font-semibold drop-shadow-sm">
+          {position}
+        </span>
+        <span className="text-xs text-white/80 font-medium">
+          ({players.length})
+        </span>
       </h3>
       {players.length === 0 ? (
-        <p className="text-gray-500 italic">Ingen spillere valgt</p>
+        <p className="text-white/70 italic">Ingen spillere valgt</p>
       ) : (
         <div className="space-y-2">
           {players.map((name, index) => (
