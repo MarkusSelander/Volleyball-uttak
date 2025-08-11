@@ -135,8 +135,7 @@ function DraggablePlayer({
           title="Dra for å flytte"
           {...attributes}
           {...listeners}
-          onClick={(e) => e.stopPropagation()}
-        >
+          onClick={(e) => e.stopPropagation()}>
           <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
             <path d="M7 4a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 8a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 12a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 16a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2z" />
           </svg>
@@ -160,8 +159,7 @@ function DraggablePlayer({
             }
           }}
           disabled={isSaving}
-          onClick={(e) => e.stopPropagation()}
-        >
+          onClick={(e) => e.stopPropagation()}>
           <option value="" disabled>
             Flytt til
           </option>
@@ -179,8 +177,7 @@ function DraggablePlayer({
           disabled={isSaving}
           className="text-red-500 hover:text-red-700 p-2 rounded-full transition-colors hover:bg-red-50 hover:scale-110"
           title="Fjern spiller"
-          type="button"
-        >
+          type="button">
           <svg
             className="w-4 h-4"
             fill="none"

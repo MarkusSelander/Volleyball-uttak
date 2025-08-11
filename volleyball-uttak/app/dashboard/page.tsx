@@ -605,8 +605,7 @@ export default function Dashboard() {
             title="Dra for å flytte"
             {...attributes}
             {...listeners}
-            onClick={(e) => e.stopPropagation()}
-          >
+            onClick={(e) => e.stopPropagation()}>
             <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
               <path d="M7 4a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 8a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 12a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 16a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2z" />
             </svg>
@@ -648,8 +647,7 @@ export default function Dashboard() {
             disabled={isSaving}
             className="text-red-500 hover:text-red-700 p-2 rounded-full transition-colors hover:bg-red-50 hover:scale-110"
             title="Fjern fra potensielle"
-            type="button"
-          >
+            type="button">
             <svg
               className="w-4 h-4"
               fill="none"
@@ -797,34 +795,37 @@ export default function Dashboard() {
                   )}
                 </div>
 
-                {available.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <span className="text-4xl mb-4 block">🎉</span>
-                    <p className="text-gray-700">
-                      {searchTerm
-                        ? "Ingen spillere funnet"
-                        : "Alle spillere er valgt til lag eller potensielle!"}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {available.map((player, index) => (
-                      <PlayerCard
-                        key={player.name}
-                        player={player}
-                        positions={POSITIONS}
-                        positionIcons={positionIcons}
-                        onSelectPosition={(
-                          pos: string,
-                          player: { name: string }
-                        ) => updateSelection(pos as Position, player)}
-                        isSaving={isSaving}
-                        index={index}
-                        id={`available-${player.name}`}
-                      />
-                    ))}
-                  </div>
-                )}
+                {/* Scrollable list */}
+                <div className="mt-2 max-h-[72vh] overflow-y-auto overflow-x-hidden pr-2">
+                  {available.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <span className="text-4xl mb-4 block">🎉</span>
+                      <p className="text-gray-700">
+                        {searchTerm
+                          ? "Ingen spillere funnet"
+                          : "Alle spillere er valgt til lag eller potensielle!"}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 pb-2">
+                      {available.map((player, index) => (
+                        <PlayerCard
+                          key={player.name}
+                          player={player}
+                          positions={POSITIONS}
+                          positionIcons={positionIcons}
+                          onSelectPosition={(
+                            pos: string,
+                            player: { name: string }
+                          ) => updateSelection(pos as Position, player)}
+                          isSaving={isSaving}
+                          index={index}
+                          id={`available-${player.name}`}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
