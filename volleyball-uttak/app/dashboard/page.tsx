@@ -1,15 +1,17 @@
 "use client";
 
-import { auth, db, onAuthStateChanged, signOut } from "@/lib/firebase";
+import { auth, db, onAuthStateChanged } from "@/lib/firebase";
 import {
   DndContext,
   DragEndEvent,
   useDraggable,
   useDroppable,
+  TouchSensor,
+  MouseSensor,
+  useSensor,
+  useSensors,
 } from "@dnd-kit/core";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import Image from "next/image";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import LoadingSpinner from "../components/LoadingSpinner";
@@ -98,6 +100,23 @@ export default function Dashboard() {
   const [totalRegistrations, setTotalRegistrations] = useState<number>(0);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>("");
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+
+  // Configure sensors for better touch support
+  const mouseSensor = useSensor(MouseSensor, {
+    activationConstraint: {
+      distance: 8, // 8px of movement required before drag starts
+    },
+  });
+
+  const touchSensor = useSensor(TouchSensor, {
+    activationConstraint: {
+      delay: 200, // 200ms delay before drag starts on touch
+      tolerance: 8, // Allow 8px of movement during delay
+    },
+  });
+
+  const sensors = useSensors(mouseSensor, touchSensor);
 
   // Debounce search term for better performance
   useEffect(() => {
@@ -796,7 +815,12 @@ export default function Dashboard() {
     }
   };
 
+  const handleDragStart = () => {
+    setIsDragging(true);
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
+    setIsDragging(false);
     const { active, over } = event;
 
     if (!over) return;
@@ -1061,11 +1085,14 @@ export default function Dashboard() {
   };
 
   return (
-    <DndContext onDragEnd={handleDragEnd}>
-      <div className="min-h-screen bg-gray-50">
+    <DndContext 
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd} 
+      sensors={sensors}>
+      <div className="min-h-screen bg-gray-50" data-dnd-context="true" data-dragging={isDragging}>
         {/* Header */}
-        <NavHeader 
-          title="NTNUI Volleyball Uttak" 
+        <NavHeader
+          title="NTNUI Volleyball Uttak"
           subtitle="Lagadministrasjon"
         />
 

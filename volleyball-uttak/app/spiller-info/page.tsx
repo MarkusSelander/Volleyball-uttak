@@ -1,8 +1,5 @@
 "use client";
 
-import { auth, signOut } from "@/lib/firebase";
-import Image from "next/image";
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import LoadingSpinner from "../components/LoadingSpinner";
 import NavHeader from "../components/NavHeader";
@@ -254,10 +251,7 @@ export default function SpillerInfoPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <NavHeader 
-        title="Spiller info" 
-        subtitle="Fullt spreadsheet"
-      />
+      <NavHeader title="Spiller info" subtitle="Fullt spreadsheet" />
 
       <main className="w-full mx-auto px-2 sm:px-4 py-6 sm:py-8">
         {isLoading ? (

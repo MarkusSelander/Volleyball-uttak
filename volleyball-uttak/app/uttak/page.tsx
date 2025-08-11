@@ -1,9 +1,7 @@
 "use client";
 
-import { auth, db, onAuthStateChanged, signOut } from "@/lib/firebase";
+import { auth, db, onAuthStateChanged } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
-import Image from "next/image";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import LoadingSpinner from "../components/LoadingSpinner";
@@ -332,10 +330,7 @@ export default function UttakPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <NavHeader 
-        title="Uttak" 
-        subtitle="Spillere valgt i laguttak"
-      />
+      <NavHeader title="Uttak" subtitle="Spillere valgt i laguttak" />
 
       <main className="max-w-screen-2xl mx-auto px-2 py-8">
         {isLoading ? (

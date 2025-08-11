@@ -188,3 +188,64 @@ html {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--primary);
 }
+
+/* Touch optimizations */
+@media (hover: none) and (pointer: coarse) {
+  /* Touch devices: disable hover effects that can interfere */
+  .hover-lift:hover {
+    transform: none;
+    box-shadow: none;
+  }
+  
+  /* Improve touch feedback with active states */
+  .touch-manipulation:active {
+    transform: scale(0.95);
+    transition: transform 0.1s ease;
+  }
+  
+  /* Make sure draggable items have proper touch feedback */
+  [data-touch-active="true"] {
+    transform: scale(1.05);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+  }
+}
+
+/* Better touch targets - ensure minimum 44px touch targets on mobile */
+@media (max-width: 768px) {
+  button, [role="button"], input[type="button"], input[type="submit"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Improve spacing between interactive elements */
+  .touch-spacing > * + * {
+    margin-left: 8px;
+  }
+}
+
+/* Drag and drop optimizations */
+[data-dnd-context] {
+  /* Prevent text selection during drag */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* Enhanced feedback for dragging state */
+[data-dragging="true"] {
+  opacity: 0.6;
+  transform: rotate(2deg) scale(1.05);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+  transition: none; /* Disable transitions during drag for better performance */
+}
+
+/* Drop zone visual feedback */
+[data-drop-target="true"] {
+  background: rgba(59, 130, 246, 0.1);
+  border: 2px dashed #3b82f6;
+  transform: scale(1.02);
+  transition: all 0.2s ease;
+}

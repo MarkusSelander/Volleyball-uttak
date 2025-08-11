@@ -40,9 +40,12 @@ export default function PositionSection({
   return (
     <div
       ref={setDroppableRef}
-      className={`border-l-4 pl-4 transition-all duration-200 ${
-        isOver ? "border-blue-400 bg-blue-50" : "border-gray-200"
-      }`}>
+      className={`border-l-4 pl-4 py-2 transition-all duration-300 min-h-[80px] ${
+        isOver 
+          ? "border-blue-400 bg-blue-50 transform scale-102 shadow-md" 
+          : "border-gray-200"
+      }`}
+      data-drop-target={isOver}>
       <h3 className="font-semibold text-base mb-3 flex items-center gap-2">
         <span
           className={`w-5 h-5 ${positionColors[position]} rounded-full flex items-center justify-center text-white text-xs shadow-sm border border-white/20`}>
@@ -56,7 +59,11 @@ export default function PositionSection({
         </span>
       </h3>
       {players.length === 0 ? (
-        <p className="text-white/70 italic">Ingen spillere valgt</p>
+        <div className={`text-white/70 italic p-4 rounded-lg border-2 border-dashed transition-all ${
+          isOver ? "border-blue-300 bg-blue-100/50" : "border-white/30"
+        }`}>
+          {isOver ? "Slipp spilleren her" : "Ingen spillere valgt"}
+        </div>
       ) : (
         <div className="space-y-2">
           {players.map((name, index) => (
@@ -128,24 +135,27 @@ function DraggablePlayer({
   return (
     <div
       ref={setNodeRef}
-      className={`flex items-center justify-between p-3 bg-gradient-to-r from-gray-50 to-white border border-gray-200 rounded-lg animate-slide-in shadow-sm hover:shadow-md transition-all duration-200 ${
-        isDragging ? "opacity-50 scale-105 shadow-lg" : ""
+      className={`flex items-center justify-between p-3 md:p-3 bg-gradient-to-r from-gray-50 to-white border border-gray-200 rounded-lg animate-slide-in shadow-sm hover:shadow-md transition-all duration-200 touch-none ${
+        isDragging ? "opacity-50 scale-105 shadow-lg z-50" : ""
       }`}
       style={{
         animationDelay: `${index * 0.1}s`,
         ...style,
       }}>
       <div className="flex items-center gap-2 min-w-0">
-        {/* Drag handle */}
+        {/* Drag handle - Larger touch target */}
         <button
           type="button"
-          className="p-1 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing"
+          className="p-2 md:p-1 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing touch-manipulation select-none min-w-[44px] min-h-[44px] md:min-w-[28px] md:min-h-[28px] flex items-center justify-center rounded-lg hover:bg-gray-200 active:bg-gray-300 transition-colors"
           aria-label="Dra for å flytte"
           title="Dra for å flytte"
           {...attributes}
           {...listeners}
           onClick={(e) => e.stopPropagation()}>
-          <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+          <svg 
+            className="w-5 h-5 md:w-4 md:h-4 pointer-events-none" 
+            viewBox="0 0 20 20" 
+            fill="currentColor">
             <path d="M7 4a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 8a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 12a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 16a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2z" />
           </svg>
         </button>
@@ -171,11 +181,11 @@ function DraggablePlayer({
             onRemovePlayer(position, name);
           }}
           disabled={isSaving}
-          className="text-red-500 hover:text-red-700 p-1.5 md:p-2 rounded-full transition-colors hover:bg-red-50 hover:scale-110"
+          className="text-red-500 hover:text-red-700 p-2 md:p-1.5 rounded-full transition-colors hover:bg-red-50 hover:scale-110 touch-manipulation min-w-[44px] min-h-[44px] md:min-w-[32px] md:min-h-[32px] flex items-center justify-center"
           title="Fjern spiller"
           type="button">
           <svg
-            className="w-3.5 h-3.5 md:w-4 md:h-4"
+            className="w-4 h-4 md:w-4 md:h-4 pointer-events-none"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24">
