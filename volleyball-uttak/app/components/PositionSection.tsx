@@ -157,7 +157,7 @@ function DraggablePlayer({
                 ? `Registreringsnummer ${registrationNumber}`
                 : `Rad ${rowNumber}`
             }>
-            #{registrationNumber || (rowNumber ? rowNumber + 98 : '')}
+            #{registrationNumber || (rowNumber ? rowNumber + 98 : "")}
           </span>
         )}
         <span

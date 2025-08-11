@@ -91,7 +91,9 @@ export default function PlayerCard({
                 ? `Registreringsnummer ${player.registrationNumber}`
                 : `Rad ${player.rowNumber}`
             }>
-            #{player.registrationNumber || (player.rowNumber ? player.rowNumber + 98 : '')}
+            #
+            {player.registrationNumber ||
+              (player.rowNumber ? player.rowNumber + 98 : "")}
           </span>
         )}
       </div>

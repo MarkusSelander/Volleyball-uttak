@@ -85,6 +85,7 @@ const positionMapping: Record<string, Position[]> = {
 
 export default function Dashboard() {
   const [players, setPlayers] = useState<Player[]>([]);
+  const [playersLoaded, setPlayersLoaded] = useState(false); // Track if players are loaded once
   const [selection, setSelection] = useState<Selection>(emptySelection);
   const [potentialPlayers, setPotentialPlayers] = useState<string[]>(
     emptyPotentialPlayers
@@ -305,8 +306,13 @@ export default function Dashboard() {
       }
     });
 
-    // Hent spillere fra API
+    // Hent spillere fra API (med caching)
     const fetchPlayers = async () => {
+      // Only fetch if not already loaded
+      if (playersLoaded) {
+        return;
+      }
+
       try {
         const response = await fetch("/api/players");
         if (!response.ok) {
@@ -316,16 +322,18 @@ export default function Dashboard() {
 
         if (data.detailedPlayers) {
           setPlayers(data.detailedPlayers);
+          console.log(`📦 Loaded ${data.detailedPlayers.length} detailed players from API`);
         } else {
           // Fallback til enkel format
-          setPlayers(
-            data.players.map((p: { name: string }) => ({ name: p.name }))
-          );
+          const fallbackPlayers = data.players.map((p: { name: string }) => ({ name: p.name }));
+          setPlayers(fallbackPlayers);
+          console.log(`📦 Loaded ${fallbackPlayers.length} fallback players from API`);
         }
 
         setDataSource(data.source || "unknown");
         setDataMessage(data.message || "");
         setTotalRegistrations(data.totalRegistrations || data.players.length);
+        setPlayersLoaded(true); // Mark players as loaded
 
         if (data.source === "fallback") {
           showNotification(
@@ -362,84 +370,54 @@ export default function Dashboard() {
   }, [router]);
 
   const updateSelection = async (pos: Position, player: Player) => {
-    setIsSaving(true);
-    try {
-      const newSel: Selection = { ...selection };
+    // Optimistic update - update UI immediately
+    const newSel: Selection = { ...selection };
 
-      // Fjern spilleren fra alle posisjoner først (for å unngå duplikater)
-      for (const p of POSITIONS) {
-        newSel[p] = newSel[p].filter((n) => n !== player.name);
-      }
-
-      // Fjern spilleren fra potensielle spillere hvis de er der
-      const newPotentialPlayers = potentialPlayers.filter(
-        (name) => name !== player.name
-      );
-      setPotentialPlayers(newPotentialPlayers);
-
-      // Legg til spilleren i den valgte posisjonen
-      newSel[pos] = [...newSel[pos], player.name];
-
-      // Oppdater state først for umiddelbar UI oppdatering
-      setSelection(newSel);
-
-      // Prøv å lagre til Firebase, men ikke la det stoppe UI oppdateringen
-      if (auth.currentUser) {
-        try {
-          await setDoc(doc(db, "teams", auth.currentUser.uid), {
-            ...newSel,
-            potentialPlayers: newPotentialPlayers,
-          });
-          showNotification(`${player.name} lagt til som ${pos}`, "success");
-        } catch (firebaseError) {
-          console.error("Firebase error, but UI updated:", firebaseError);
-          showNotification(
-            `${player.name} lagt til som ${pos} (offline)`,
-            "info"
-          );
-        }
-      }
-    } catch (error) {
-      console.error("Error updating selection:", error);
-      showNotification("Feil ved oppdatering av laguttak", "error");
-    } finally {
-      setIsSaving(false);
+    // Fjern spilleren fra alle posisjoner først (for å unngå duplikater)
+    for (const p of POSITIONS) {
+      newSel[p] = newSel[p].filter((n) => n !== player.name);
     }
+
+    // Fjern spilleren fra potensielle spillere hvis de er der
+    const newPotentialPlayers = potentialPlayers.filter(
+      (name) => name !== player.name
+    );
+    setPotentialPlayers(newPotentialPlayers);
+
+    // Legg til spilleren i den valgte posisjonen
+    newSel[pos] = [...newSel[pos], player.name];
+    setSelection(newSel);
+
+    // Save to Firebase in background
+    if (auth.currentUser) {
+      setDoc(doc(db, "teams", auth.currentUser.uid), {
+        ...newSel,
+        potentialPlayers: newPotentialPlayers,
+      }).catch((error) => {
+        console.error("Background Firebase save failed:", error);
+      });
+    }
+
+    showNotification(`${player.name} lagt til som ${pos}`, "success");
   };
 
   const removePlayer = async (pos: Position, playerName: string) => {
-    setIsSaving(true);
-    try {
-      const newSel: Selection = { ...selection };
-      // Fjern spilleren fra den spesifikke posisjonen
-      newSel[pos] = newSel[pos].filter((name) => name !== playerName);
+    // Optimistic update - update UI immediately without waiting for Firebase
+    const newSel: Selection = { ...selection };
+    newSel[pos] = newSel[pos].filter((name) => name !== playerName);
+    setSelection(newSel);
 
-      // Oppdater state først for umiddelbar UI oppdatering
-      setSelection(newSel);
-
-      // Prøv å lagre til Firebase, men ikke la det stoppe UI oppdateringen
-      if (auth.currentUser) {
-        try {
-          await setDoc(doc(db, "teams", auth.currentUser.uid), {
-            ...newSel,
-            potentialPlayers,
-          });
-        } catch (firebaseError) {
-          console.error("Firebase error, but UI updated:", firebaseError);
-          // Ikke vis feilmelding til bruker hvis UI fortsatt fungerer
-        }
-      }
-
-      showNotification(
-        `${playerName} fjernet fra ${pos} og lagt tilbake i tilgjengelige spillere`,
-        "info"
-      );
-    } catch (error) {
-      console.error("Error removing player:", error);
-      showNotification("Feil ved fjerning av spiller", "error");
-    } finally {
-      setIsSaving(false);
+    // Save to Firebase in background without blocking UI
+    if (auth.currentUser) {
+      setDoc(doc(db, "teams", auth.currentUser.uid), {
+        ...newSel,
+        potentialPlayers,
+      }).catch((error) => {
+        console.error("Background Firebase save failed:", error);
+      });
     }
+
+    showNotification(`${playerName} fjernet fra ${pos}`, "info");
   };
 
   // Flytt en spiller mellom posisjoner i Laguttak
@@ -482,22 +460,28 @@ export default function Dashboard() {
     }
   };
 
+  // Memoize selected and potential player names for better performance
+  const selectedPlayerNames = useMemo(() => {
+    return Object.values(selection).flat();
+  }, [selection]);
+
+  const allUnavailablePlayerNames = useMemo(() => {
+    return [...selectedPlayerNames, ...potentialPlayers];
+  }, [selectedPlayerNames, potentialPlayers]);
+
   // Beregn tilgjengelige spillere (spillere som ikke er valgt til noen posisjon eller potensielle) - memoized
   const available = useMemo(() => {
+    console.log("🔄 Recomputing available players...");
     const filteredPlayers = getFilteredPlayers(players)
-      .filter(
-        (p) =>
-          !POSITIONS.some((pos) => selection[pos].includes(p.name)) &&
-          !potentialPlayers.includes(p.name)
-      )
+      .filter((p) => !allUnavailablePlayerNames.includes(p.name))
       .sort((a, b) => {
         // Sorter etter registreringsnummer (laveste først)
         const regA = a.registrationNumber
           ? parseInt(a.registrationNumber) || Infinity
-          : Infinity;
+          : a.rowNumber ? a.rowNumber + 98 : Infinity;
         const regB = b.registrationNumber
           ? parseInt(b.registrationNumber) || Infinity
-          : Infinity;
+          : b.rowNumber ? b.rowNumber + 98 : Infinity;
         return regA - regB;
       });
 
@@ -507,8 +491,9 @@ export default function Dashboard() {
       return index === firstIndex;
     });
 
+    console.log(`📊 Available players: ${uniquePlayers.length}, Total players: ${players.length}, Selected: ${selectedPlayerNames.length}, Potential: ${potentialPlayers.length}`);
     return uniquePlayers;
-  }, [getFilteredPlayers, players, selection, potentialPlayers]);
+  }, [getFilteredPlayers, players, allUnavailablePlayerNames, selectedPlayerNames, potentialPlayers]);
 
   // Memoized players by desired position for better performance
   const playersByDesiredPosition = useMemo(() => {
@@ -730,28 +715,21 @@ export default function Dashboard() {
   }
 
   const addToPotential = async (player: Player) => {
-    setIsSaving(true);
-    try {
-      // Bestem standardgruppe fra ønsket posisjon
-      const mapped = player.desiredPositions
-        ? mapPositions(player.desiredPositions)
-        : [];
-      const target: Position | "Ukjent" =
-        mapped.length > 0 ? (mapped[0] as Position) : "Ukjent";
+    // Bestem standardgruppe fra ønsket posisjon
+    const mapped = player.desiredPositions
+      ? mapPositions(player.desiredPositions)
+      : [];
+    const target: Position | "Ukjent" =
+      mapped.length > 0 ? (mapped[0] as Position) : "Ukjent";
 
-      await upsertToGroup(player.name, target);
+    // Update UI immediately
+    upsertToGroup(player.name, target);
 
-      const suffix = target !== "Ukjent" ? ` (${target})` : "";
-      showNotification(
-        `${player.name} lagt til i potensielle${suffix}`,
-        "success"
-      );
-    } catch (error) {
-      console.error("Error adding to potential:", error);
-      showNotification("Feil ved lagring av potensielle spiller", "error");
-    } finally {
-      setIsSaving(false);
-    }
+    const suffix = target !== "Ukjent" ? ` (${target})` : "";
+    showNotification(
+      `${player.name} lagt til i potensielle${suffix}`,
+      "success"
+    );
   };
 
   const removeFromPotential = async (playerName: string) => {
@@ -1025,7 +1003,7 @@ export default function Dashboard() {
                   ? `Registreringsnummer ${registrationNumber}`
                   : `Rad ${rowNumber}`
               }>
-              #{registrationNumber || (rowNumber ? rowNumber + 98 : '')}
+              #{registrationNumber || (rowNumber ? rowNumber + 98 : "")}
             </span>
           )}
 
@@ -1330,13 +1308,11 @@ export default function Dashboard() {
                       </div>
                     ) : (
                       <div className="space-y-3 pb-2">
-                        {/* Virtual rendering - kun vis første 50 spillere for bedre ytelse */}
-                        {available
-                          .slice(0, searchTerm ? available.length : 50)
-                          .map((player, index) => (
+                        {/* Vis alle spillere - ingen virtual rendering */}
+                        {available.map((player, index) => (
                             <PlayerCard
                               key={`${player.name}-${
-                                player.registrationNumber || index
+                                player.registrationNumber || player.rowNumber || index
                               }`}
                               player={player}
                               positions={POSITIONS}
@@ -1350,14 +1326,12 @@ export default function Dashboard() {
                               }
                               isSaving={isSaving}
                               index={index}
-                              id={`available-${player.name}`}
+                              id={`available-${player.name}-${index}`}
                             />
                           ))}
-                        {available.length > 50 && !searchTerm && (
-                          <div className="text-center py-4 text-gray-600 text-sm bg-blue-50 rounded-lg">
-                            Viser første 50 av {available.length} spillere.
-                            <br />
-                            Bruk søkefeltet for å finne spesifikke spillere.
+                        {available.length > 0 && (
+                          <div className="text-center py-2 text-gray-500 text-sm bg-gray-50 rounded-lg">
+                            Viser alle {available.length} tilgjengelige spillere
                           </div>
                         )}
                       </div>
@@ -1600,7 +1574,9 @@ export default function Dashboard() {
                                       }>
                                       #
                                       {player.registrationNumber ||
-                                        (player.rowNumber ? player.rowNumber + 98 : '')}
+                                        (player.rowNumber
+                                          ? player.rowNumber + 98
+                                          : "")}
                                     </span>
                                   )}
                                   <span
