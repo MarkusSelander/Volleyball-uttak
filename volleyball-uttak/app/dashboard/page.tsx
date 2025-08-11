@@ -609,6 +609,9 @@ export default function Dashboard() {
         if (fromPosition !== toPosition) {
           movePlayer(fromPosition, playerName, toPosition);
         }
+      } else if (overId === "available-drop") {
+        // Dra tilbake til Tilgjengelige
+        removePlayer(fromPosition, playerName);
       }
     }
 
@@ -627,6 +630,9 @@ export default function Dashboard() {
           ? (posStr as Position)
           : "Ukjent";
         upsertToGroup(playerName, target);
+      } else if (overId === "available-drop") {
+        // Dra tilbake til Tilgjengelige
+        removeFromAllGroups(playerName);
       }
     }
   };
@@ -646,6 +652,25 @@ export default function Dashboard() {
         className={`min-h-[100px] transition-all duration-200 ${
           isOver
             ? "bg-orange-100 border-2 border-orange-300 border-dashed rounded-lg"
+            : ""
+        }`}>
+        {children}
+      </div>
+    );
+  };
+
+  // Drop zone komponent for tilgjengelige spillere (for å dra tilbake)
+  const AvailableDropZone = ({ children }: { children: React.ReactNode }) => {
+    const { setNodeRef, isOver } = useDroppable({
+      id: "available-drop",
+      data: { type: "available-drop" },
+    });
+    return (
+      <div
+        ref={setNodeRef}
+        className={`transition-all duration-200 ${
+          isOver
+            ? "bg-blue-50 border-2 border-blue-300 border-dashed rounded-lg"
             : ""
         }`}>
         {children}
@@ -797,7 +822,7 @@ export default function Dashboard() {
       <div className="min-h-screen bg-gray-50">
         {/* Header */}
         <header className="gradient-primary text-white shadow-lg">
-          <div className="max-w-screen-2xl mx-auto px-2 py-6">
+          <div className="w-full px-2 py-6 md:px-4">
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-4">
                 <Image
@@ -848,7 +873,7 @@ export default function Dashboard() {
           </div>
         </header>
 
-        <div className="max-w-screen-2xl mx-auto px-2 md:px-4 py-8">
+        <div className="w-full px-2 md:px-4 py-8">
           {/* Statistikk */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <StatsCard
@@ -919,39 +944,41 @@ export default function Dashboard() {
                 </div>
 
                 {/* Scrollable list */}
-                <div
-                  className="mt-2 max-h-[72vh] overflow-y-auto overflow-x-hidden pr-2"
-                  style={{ WebkitOverflowScrolling: "touch" }}>
-                  {available.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">
-                      <span className="text-4xl mb-4 block">🎉</span>
-                      <p className="text-gray-700">
-                        {searchTerm
-                          ? "Ingen spillere funnet"
-                          : "Alle spillere er valgt til lag eller potensielle!"}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3 pb-2">
-                      {available.map((player, index) => (
-                        <PlayerCard
-                          key={player.name}
-                          player={player}
-                          positions={POSITIONS}
-                          positionIcons={positionIcons}
-                          onSelectPosition={(
-                            pos: string,
-                            player: { name: string }
-                          ) => updateSelection(pos as Position, player)}
-                          onAddPotential={(p) => addToPotential(p as Player)}
-                          isSaving={isSaving}
-                          index={index}
-                          id={`available-${player.name}`}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <AvailableDropZone>
+                  <div
+                    className="mt-2 max-h-[72vh] overflow-y-auto overflow-x-hidden pr-2"
+                    style={{ WebkitOverflowScrolling: "touch" }}>
+                    {available.length === 0 ? (
+                      <div className="text-center py-8 text-gray-500">
+                        <span className="text-4xl mb-4 block">🎉</span>
+                        <p className="text-gray-700">
+                          {searchTerm
+                            ? "Ingen spillere funnet"
+                            : "Alle spillere er valgt til lag eller potensielle!"}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3 pb-2">
+                        {available.map((player, index) => (
+                          <PlayerCard
+                            key={player.name}
+                            player={player}
+                            positions={POSITIONS}
+                            positionIcons={positionIcons}
+                            onSelectPosition={(
+                              pos: string,
+                              player: { name: string }
+                            ) => updateSelection(pos as Position, player)}
+                            onAddPotential={(p) => addToPotential(p as Player)}
+                            isSaving={isSaving}
+                            index={index}
+                            id={`available-${player.name}`}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </AvailableDropZone>
               </div>
             </div>
 
