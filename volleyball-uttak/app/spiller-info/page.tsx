@@ -39,7 +39,6 @@ const LABELS: Record<string, string> = {
   experience: "Erfaring",
   previousTeam: "Tidligere lag",
   isStudent: "Student",
-  level: "Nivå",
   attendance: "Email", // per earlier request
 };
 
@@ -147,7 +146,7 @@ export default function SpillerInfoPage() {
       return [] as { key: string; label: string; narrow?: boolean }[];
     const keys = Object.keys(rows[0] || {});
 
-    // Preferred order: rowNumber, name, birthDate, gender, phone, email, previousTeam, previousPositions, desiredPositions, desiredLevel, experience, isStudent, level, attendance
+    // Preferred order: rowNumber, name, birthDate, gender, phone, email, previousTeam, previousPositions, desiredPositions, desiredLevel, experience, isStudent, attendance
     const preferredOrder = [
       "rowNumber",
       "name",
@@ -161,7 +160,6 @@ export default function SpillerInfoPage() {
       "desiredLevel",
       "experience",
       "isStudent",
-      "level",
       "attendance",
     ];
 

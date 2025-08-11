@@ -144,17 +144,6 @@ export default function Dashboard() {
     return (POSITIONS as readonly string[]).includes(x as Position);
   };
 
-  // Søkefunksjon
-  const filteredPlayers = players.filter((player) => {
-    if (!searchTerm) return true;
-
-    const searchLower = searchTerm.toLowerCase();
-    const nameMatch = player.name.toLowerCase().includes(searchLower);
-    const rowMatch = player.rowNumber?.toString().includes(searchTerm) || false;
-
-    return nameMatch || rowMatch;
-  });
-
   // Filterfunksjon som også tar hensyn til søketerm - memoized
   const getFilteredPlayers = useCallback(
     (playerList: Player[]) => {
@@ -478,11 +467,26 @@ export default function Dashboard() {
 
   // Beregn tilgjengelige spillere (spillere som ikke er valgt til noen posisjon eller potensielle) - memoized
   const available = useMemo(() => {
-    return getFilteredPlayers(players).filter(
-      (p) =>
-        !POSITIONS.some((pos) => selection[pos].includes(p.name)) &&
-        !potentialPlayers.includes(p.name)
-    );
+    const filteredPlayers = getFilteredPlayers(players)
+      .filter(
+        (p) =>
+          !POSITIONS.some((pos) => selection[pos].includes(p.name)) &&
+          !potentialPlayers.includes(p.name)
+      )
+      .sort((a, b) => {
+        // Sorter etter radnummer (laveste først)
+        const rowA = a.rowNumber || Infinity;
+        const rowB = b.rowNumber || Infinity;
+        return rowA - rowB;
+      });
+
+    // Fjern duplikater basert på navn (behold første/laveste radnummer)
+    const uniquePlayers = filteredPlayers.filter((player, index, array) => {
+      const firstIndex = array.findIndex((p) => p.name === player.name);
+      return index === firstIndex;
+    });
+
+    return uniquePlayers;
   }, [getFilteredPlayers, players, selection, potentialPlayers]);
 
   // Stateful grupper for potensielle spillere (flytting mellom grupper i UI)
@@ -1240,7 +1244,7 @@ export default function Dashboard() {
                       <div className="space-y-3 pb-2">
                         {available.map((player, index) => (
                           <PlayerCard
-                            key={player.name}
+                            key={`${player.name}-${player.rowNumber || index}`}
                             player={player}
                             positions={POSITIONS}
                             positionIcons={positionIcons}
@@ -1302,7 +1306,9 @@ export default function Dashboard() {
                                 {filteredPotentialGroups[pos].map(
                                   (playerName, index) => (
                                     <DraggablePotentialPlayer
-                                      key={playerName}
+                                      key={`${playerName}-${
+                                        nameToRow[playerName] || index
+                                      }-potential-${pos}`}
                                       playerName={playerName}
                                       rowNumber={nameToRow[playerName]}
                                       positionIcons={positionIcons}
@@ -1329,7 +1335,9 @@ export default function Dashboard() {
                               {filteredPotentialGroups["Ukjent"].map(
                                 (playerName, index) => (
                                   <DraggablePotentialPlayer
-                                    key={playerName}
+                                    key={`${playerName}-${
+                                      nameToRow[playerName] || index
+                                    }-potential-ukjent`}
                                     playerName={playerName}
                                     rowNumber={nameToRow[playerName]}
                                     positionIcons={positionIcons}
@@ -1401,11 +1409,38 @@ export default function Dashboard() {
             <div className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                 {POSITIONS.map((position) => {
-                  const positionPlayers = getFilteredPlayers(players).filter(
-                    (player) => {
+                  const filteredPlayers = getFilteredPlayers(players)
+                    .filter((player) => {
                       if (!player.desiredPositions) return false;
+
+                      // Sjekk om spilleren allerede er valgt til lag eller potensielle
+                      const isInTeam = POSITIONS.some((pos) =>
+                        selection[pos].includes(player.name)
+                      );
+                      const isPotential = potentialPlayers.includes(
+                        player.name
+                      );
+
+                      // Vis bare spillere som ikke er valgt enda
+                      if (isInTeam || isPotential) return false;
+
                       const mapped = mapPositions(player.desiredPositions);
                       return mapped.includes(position);
+                    })
+                    .sort((a, b) => {
+                      // Sorter etter radnummer (laveste først)
+                      const rowA = a.rowNumber || Infinity;
+                      const rowB = b.rowNumber || Infinity;
+                      return rowA - rowB;
+                    });
+
+                  // Fjern duplikater basert på navn (behold første/laveste radnummer)
+                  const positionPlayers = filteredPlayers.filter(
+                    (player, index, array) => {
+                      const firstIndex = array.findIndex(
+                        (p) => p.name === player.name
+                      );
+                      return index === firstIndex;
                     }
                   );
 
@@ -1466,7 +1501,9 @@ export default function Dashboard() {
 
                             return (
                               <div
-                                key={player.name}
+                                key={`${player.name}-${
+                                  player.rowNumber || "norow"
+                                }-${position}`}
                                 className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                                 <div className="flex items-center gap-2 min-w-0">
                                   {typeof player.rowNumber === "number" && (

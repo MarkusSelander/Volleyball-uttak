@@ -26,11 +26,29 @@ export default function LoginPage() {
   const handleLogin = async () => {
     setIsLoading(true);
     setError("");
+
     try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (err) {
-      setError("Innlogging feilet. Prøv igjen.");
-      console.error("Login error:", err);
+      const result = await signInWithPopup(auth, googleProvider);
+    } catch (err: any) {
+      console.error("Login error details:", {
+        code: err.code,
+        message: err.message,
+        customData: err.customData,
+      });
+
+      let errorMessage = "Innlogging feilet. Prøv igjen.";
+
+      if (err.code === "auth/popup-blocked") {
+        errorMessage = "Popup-vindu ble blokkert. Tillat popups og prøv igjen.";
+      } else if (err.code === "auth/popup-closed-by-user") {
+        errorMessage = "Du avbrøt innloggingen. Prøv igjen.";
+      } else if (err.code === "auth/unauthorized-domain") {
+        errorMessage = "Dette domenet er ikke autorisert for innlogging.";
+      } else if (err.code === "auth/network-request-failed") {
+        errorMessage = "Nettverksfeil. Sjekk internettforbindelsen din.";
+      }
+
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
