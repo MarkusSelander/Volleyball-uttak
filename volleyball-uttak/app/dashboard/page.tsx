@@ -1,6 +1,6 @@
 "use client";
 
-import { auth, db, onAuthStateChanged } from "@/lib/firebase";
+import { auth, db, onAuthStateChanged, onSnapshot } from "@/lib/firebase";
 import {
   DndContext,
   DragEndEvent,
@@ -101,6 +101,8 @@ export default function Dashboard() {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>("");
   const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [isConnected, setIsConnected] = useState<boolean>(false); // Real-time connection status
+  const [isLocalUpdate, setIsLocalUpdate] = useState<boolean>(false); // Track if update is from local action
 
   // Configure sensors for better touch support
   const mouseSensor = useSensor(MouseSensor, {
@@ -307,23 +309,41 @@ export default function Dashboard() {
         router.replace("/login");
         return;
       }
-      try {
-        const ref = doc(db, "teams", user.uid);
-        const snap = await getDoc(ref);
-        if (snap.exists()) {
-          const data = snap.data();
+
+      // Set up real-time listener for team data
+      const teamRef = doc(db, "teams", user.uid);
+      
+      // Real-time listener for team selection data
+      const unsubscribeSnapshot = onSnapshot(teamRef, (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
           setSelection(data as Selection);
-          // Last potensielle spillere hvis de finnes
+          
+          // Load potential players if they exist
           if (data.potentialPlayers) {
             setPotentialPlayers(data.potentialPlayers);
           }
+          
+          setIsConnected(true);
+          console.log("🔄 Real-time data synkronisert");
+        } else {
+          // Document doesn't exist, create it with empty data
+          setDoc(teamRef, emptySelection).catch((error) => {
+            console.error("Error creating initial document:", error);
+          });
         }
-      } catch (error) {
-        console.error("Error loading selection:", error);
-        showNotification("Feil ved lasting av data", "error");
-      } finally {
         setIsLoading(false);
-      }
+      }, (error) => {
+        console.error("Error in real-time listener:", error);
+        showNotification("Feil ved synkronisering av data", "error");
+        setIsConnected(false);
+        setIsLoading(false);
+      });
+
+      // Store the unsubscribe function to clean up later
+      return () => {
+        unsubscribeSnapshot();
+      };
     });
 
     // Hent spillere fra API (med caching)
@@ -396,6 +416,8 @@ export default function Dashboard() {
   }, [router]);
 
   const updateSelection = async (pos: Position, player: Player) => {
+    setIsLocalUpdate(true); // Mark as local update
+    
     // Optimistic update - update UI immediately
     const newSel: Selection = { ...selection };
 
@@ -421,6 +443,8 @@ export default function Dashboard() {
         potentialPlayers: newPotentialPlayers,
       }).catch((error) => {
         console.error("Background Firebase save failed:", error);
+      }).finally(() => {
+        setIsLocalUpdate(false); // Reset local update flag
       });
     }
 
@@ -428,6 +452,8 @@ export default function Dashboard() {
   };
 
   const removePlayer = async (pos: Position, playerName: string) => {
+    setIsLocalUpdate(true); // Mark as local update
+    
     // Optimistic update - update UI immediately without waiting for Firebase
     const newSel: Selection = { ...selection };
     newSel[pos] = newSel[pos].filter((name) => name !== playerName);
@@ -440,6 +466,8 @@ export default function Dashboard() {
         potentialPlayers,
       }).catch((error) => {
         console.error("Background Firebase save failed:", error);
+      }).finally(() => {
+        setIsLocalUpdate(false); // Reset local update flag
       });
     }
 
@@ -1095,6 +1123,21 @@ export default function Dashboard() {
           title="NTNUI Volleyball Uttak"
           subtitle="Lagadministrasjon"
         />
+
+        {/* Connection Status Indicator */}
+        <div className="fixed top-4 right-4 z-50 flex items-center gap-2 px-3 py-1.5 rounded-full text-sm shadow-md transition-all">
+          {isConnected ? (
+            <div className="flex items-center gap-2 bg-green-100 text-green-800">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span>Live sync</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 bg-yellow-100 text-yellow-800">
+              <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+              <span>Kobler til...</span>
+            </div>
+          )}
+        </div>
 
         <div className="w-full px-2 md:px-4 py-8">
           {/* Statistikk */}

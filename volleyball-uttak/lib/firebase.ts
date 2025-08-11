@@ -7,7 +7,7 @@ import {
   signOut,
   type Auth,
 } from "firebase/auth";
-import { getFirestore, type Firestore } from "firebase/firestore";
+import { getFirestore, onSnapshot, type Firestore } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -31,4 +31,4 @@ if (typeof window !== "undefined") {
 
 export { auth, db };
 export const googleProvider = new GoogleAuthProvider();
-export { onAuthStateChanged, signInWithPopup, signOut };
+export { onAuthStateChanged, signInWithPopup, signOut, onSnapshot };
