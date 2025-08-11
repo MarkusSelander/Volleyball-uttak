@@ -621,7 +621,7 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-2">
           <select
-            className="border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm font-medium text-gray-700 hover:border-blue-400"
+            className="border border-gray-300 rounded-lg px-2.5 py-1.5 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm font-medium text-gray-700 hover:border-blue-400"
             defaultValue=""
             onChange={(e) => {
               if (e.target.value) {
@@ -691,7 +691,7 @@ export default function Dashboard() {
       <div className="min-h-screen bg-gray-50">
         {/* Header */}
         <header className="gradient-primary text-white shadow-lg">
-          <div className="max-w-7xl mx-auto px-4 py-6">
+          <div className="max-w-screen-2xl mx-auto px-2 py-6">
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
@@ -725,7 +725,7 @@ export default function Dashboard() {
           </div>
         </header>
 
-        <div className="max-w-7xl mx-auto px-4 py-8">
+        <div className="max-w-screen-2xl mx-auto px-2 py-8">
           {/* Statistikk */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <StatsCard
@@ -754,9 +754,9 @@ export default function Dashboard() {
             />
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 lg:[grid-template-columns:repeat(14,minmax(0,1fr))] gap-6">
             {/* Tilgjengelige spillere */}
-            <div className="bg-white rounded-xl shadow-sm overflow-hidden animate-fade-in">
+            <div className="bg-white rounded-xl shadow-sm overflow-hidden animate-fade-in lg:col-span-5">
               <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-4">
                 <h2 className="text-xl font-semibold text-white flex items-center gap-2">
                   <span>👥</span>
@@ -818,6 +818,7 @@ export default function Dashboard() {
                             pos: string,
                             player: { name: string }
                           ) => updateSelection(pos as Position, player)}
+                          onAddPotential={(p) => addToPotential(p as Player)}
                           isSaving={isSaving}
                           index={index}
                           id={`available-${player.name}`}
@@ -831,7 +832,7 @@ export default function Dashboard() {
 
             {/* Potensielle spillere */}
             <div
-              className="bg-white rounded-xl shadow-sm overflow-hidden animate-fade-in"
+              className="bg-white rounded-xl shadow-sm overflow-hidden animate-fade-in lg:col-span-4"
               style={{ animationDelay: "0.1s" }}>
               <div className="bg-gradient-to-r from-orange-500 to-yellow-600 px-6 py-4">
                 <h2 className="text-xl font-semibold text-white flex items-center gap-2">
@@ -874,7 +875,7 @@ export default function Dashboard() {
 
             {/* Laguttak */}
             <div
-              className="bg-white rounded-xl shadow-sm overflow-hidden animate-fade-in"
+              className="bg-white rounded-xl shadow-sm overflow-hidden animate-fade-in lg:col-span-5"
               style={{ animationDelay: "0.2s" }}>
               <div className="bg-gradient-to-r from-purple-500 to-pink-600 px-6 py-4">
                 <h2 className="text-xl font-semibold text-white flex items-center gap-2">
