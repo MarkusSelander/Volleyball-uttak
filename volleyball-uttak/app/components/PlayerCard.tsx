@@ -1,4 +1,5 @@
 import { useDraggable } from "@dnd-kit/core";
+import React from "react";
 
 interface PlayerCardProps {
   player: { name: string; registrationNumber?: string; rowNumber?: number };
@@ -11,7 +12,7 @@ interface PlayerCardProps {
   id: string;
 }
 
-export default function PlayerCard({
+function PlayerCard({
   player,
   positions,
   positionIcons,
@@ -83,19 +84,17 @@ export default function PlayerCard({
             <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
           </svg>
         </button>
-        {(player.registrationNumber || player.rowNumber) && (
-          <span
-            className="text-[10px] md:text-[11px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200"
-            title={
-              player.registrationNumber
-                ? `Registreringsnummer ${player.registrationNumber}`
-                : `Rad ${player.rowNumber}`
-            }>
-            #
-            {player.registrationNumber ||
-              (player.rowNumber ? player.rowNumber + 98 : "")}
-          </span>
-        )}
+        <span
+          className="text-[10px] md:text-[11px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200"
+          title={
+            player.registrationNumber
+              ? `Registreringsnummer ${player.registrationNumber}`
+              : `Rad ${player.rowNumber ? player.rowNumber + 98 : "ukjent"}`
+          }>
+          #
+          {player.registrationNumber ||
+            (player.rowNumber ? player.rowNumber + 98 : "?")}
+        </span>
       </div>
 
       <span
@@ -122,3 +121,5 @@ export default function PlayerCard({
     </div>
   );
 }
+
+export default React.memo(PlayerCard);

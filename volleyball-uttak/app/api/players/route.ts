@@ -37,7 +37,6 @@ interface PlayerData {
   experience?: string;
   previousTeam?: string;
   isStudent?: string;
-  level?: string;
   attendance?: string;
   registrationNumber?: string; // Kolonne T - Registreringsnummer
   rowNumber?: number; // Radnummer i arket (1-basert)
@@ -116,7 +115,6 @@ export async function GET() {
         desiredLevel: get(row, 11), // L - Ønsket nivå
         experience: get(row, 12), // M - Erfaring
         email: get(row, 15), // P - E-post
-        level: get(row, 14), // O - Høyeste nivå påmeldt
         registrationNumber: get(row, 19), // T - Registreringsnummer
         rowNumber: i + 2, // +1 for header, +1 for 1-basert radindeks
       }));

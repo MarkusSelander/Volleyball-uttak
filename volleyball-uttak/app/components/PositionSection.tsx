@@ -149,17 +149,15 @@ function DraggablePlayer({
             <path d="M7 4a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 8a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 12a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 16a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2z" />
           </svg>
         </button>
-        {(registrationNumber || rowNumber) && (
-          <span
-            className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-800 border border-gray-200"
-            title={
-              registrationNumber
-                ? `Registreringsnummer ${registrationNumber}`
-                : `Rad ${rowNumber}`
-            }>
-            #{registrationNumber || (rowNumber ? rowNumber + 98 : "")}
-          </span>
-        )}
+        <span
+          className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-800 border border-gray-200"
+          title={
+            registrationNumber
+              ? `Registreringsnummer ${registrationNumber}`
+              : `Rad ${rowNumber ? rowNumber + 98 : "ukjent"}`
+          }>
+          #{registrationNumber || (rowNumber ? rowNumber + 98 : "?")}
+        </span>
         <span
           className="font-semibold text-gray-800 truncate text-xs md:text-sm"
           title={name}>

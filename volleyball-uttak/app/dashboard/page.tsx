@@ -322,12 +322,18 @@ export default function Dashboard() {
 
         if (data.detailedPlayers) {
           setPlayers(data.detailedPlayers);
-          console.log(`📦 Loaded ${data.detailedPlayers.length} detailed players from API`);
+          console.log(
+            `📦 Loaded ${data.detailedPlayers.length} detailed players from API`
+          );
         } else {
           // Fallback til enkel format
-          const fallbackPlayers = data.players.map((p: { name: string }) => ({ name: p.name }));
+          const fallbackPlayers = data.players.map((p: { name: string }) => ({
+            name: p.name,
+          }));
           setPlayers(fallbackPlayers);
-          console.log(`📦 Loaded ${fallbackPlayers.length} fallback players from API`);
+          console.log(
+            `📦 Loaded ${fallbackPlayers.length} fallback players from API`
+          );
         }
 
         setDataSource(data.source || "unknown");
@@ -469,19 +475,27 @@ export default function Dashboard() {
     return [...selectedPlayerNames, ...potentialPlayers];
   }, [selectedPlayerNames, potentialPlayers]);
 
+  // Separate memoization for the filtering function to prevent recreation
+  const filteredPlayersComputation = useMemo(() => {
+    return getFilteredPlayers(players);
+  }, [getFilteredPlayers, players]);
+
   // Beregn tilgjengelige spillere (spillere som ikke er valgt til noen posisjon eller potensielle) - memoized
   const available = useMemo(() => {
-    console.log("🔄 Recomputing available players...");
-    const filteredPlayers = getFilteredPlayers(players)
+    const filteredPlayers = filteredPlayersComputation
       .filter((p) => !allUnavailablePlayerNames.includes(p.name))
       .sort((a, b) => {
         // Sorter etter registreringsnummer (laveste først)
         const regA = a.registrationNumber
           ? parseInt(a.registrationNumber) || Infinity
-          : a.rowNumber ? a.rowNumber + 98 : Infinity;
+          : a.rowNumber
+          ? a.rowNumber + 98
+          : Infinity;
         const regB = b.registrationNumber
           ? parseInt(b.registrationNumber) || Infinity
-          : b.rowNumber ? b.rowNumber + 98 : Infinity;
+          : b.rowNumber
+          ? b.rowNumber + 98
+          : Infinity;
         return regA - regB;
       });
 
@@ -491,9 +505,14 @@ export default function Dashboard() {
       return index === firstIndex;
     });
 
-    console.log(`📊 Available players: ${uniquePlayers.length}, Total players: ${players.length}, Selected: ${selectedPlayerNames.length}, Potential: ${potentialPlayers.length}`);
     return uniquePlayers;
-  }, [getFilteredPlayers, players, allUnavailablePlayerNames, selectedPlayerNames, potentialPlayers]);
+  }, [
+    filteredPlayersComputation,
+    allUnavailablePlayerNames,
+    players,
+    selectedPlayerNames,
+    potentialPlayers,
+  ]);
 
   // Memoized players by desired position for better performance
   const playersByDesiredPosition = useMemo(() => {
@@ -1310,25 +1329,25 @@ export default function Dashboard() {
                       <div className="space-y-3 pb-2">
                         {/* Vis alle spillere - ingen virtual rendering */}
                         {available.map((player, index) => (
-                            <PlayerCard
-                              key={`${player.name}-${
-                                player.registrationNumber || player.rowNumber || index
-                              }`}
-                              player={player}
-                              positions={POSITIONS}
-                              positionIcons={positionIcons}
-                              onSelectPosition={(
-                                pos: string,
-                                player: { name: string }
-                              ) => updateSelection(pos as Position, player)}
-                              onAddPotential={(p) =>
-                                addToPotential(p as Player)
-                              }
-                              isSaving={isSaving}
-                              index={index}
-                              id={`available-${player.name}-${index}`}
-                            />
-                          ))}
+                          <PlayerCard
+                            key={`${player.name}-${
+                              player.registrationNumber ||
+                              player.rowNumber ||
+                              index
+                            }`}
+                            player={player}
+                            positions={POSITIONS}
+                            positionIcons={positionIcons}
+                            onSelectPosition={(
+                              pos: string,
+                              player: { name: string }
+                            ) => updateSelection(pos as Position, player)}
+                            onAddPotential={(p) => addToPotential(p as Player)}
+                            isSaving={isSaving}
+                            index={index}
+                            id={`available-${player.name}-${index}`}
+                          />
+                        ))}
                         {available.length > 0 && (
                           <div className="text-center py-2 text-gray-500 text-sm bg-gray-50 rounded-lg">
                             Viser alle {available.length} tilgjengelige spillere
