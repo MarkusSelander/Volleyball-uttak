@@ -374,6 +374,15 @@ export default function Dashboard() {
           console.log(
             `📦 Loaded ${data.detailedPlayers.length} detailed players from API`
           );
+
+          // Debug: Check specific players
+          const andersPlayers = data.detailedPlayers.filter((p: Player) =>
+            p.name.toLowerCase().includes("anders")
+          );
+          console.log(
+            "🔍 Anders players found in API:",
+            andersPlayers.map((p: Player) => p.name)
+          );
         } else {
           // Fallback til enkel format
           const fallbackPlayers = data.players.map((p: { name: string }) => ({
@@ -567,6 +576,24 @@ export default function Dashboard() {
       const firstIndex = array.findIndex((p) => p.name === player.name);
       return index === firstIndex;
     });
+
+    // Debug: Check Anders players in available list
+    const andersInAvailable = uniquePlayers.filter((p) =>
+      p.name.toLowerCase().includes("anders")
+    );
+    console.log(
+      "🔍 Anders players in available list:",
+      andersInAvailable.map((p) => p.name)
+    );
+    console.log("📊 Total available players:", uniquePlayers.length);
+    console.log(
+      "📊 Total filtered players before unique filter:",
+      filteredPlayers.length
+    );
+    console.log(
+      "📊 Total players in filteredPlayersComputation:",
+      filteredPlayersComputation.length
+    );
 
     return uniquePlayers;
   }, [
