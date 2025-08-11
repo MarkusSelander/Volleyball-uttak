@@ -732,6 +732,8 @@ export default function Dashboard() {
 
   const upsertToGroup = useCallback(
     async (name: string, target: (typeof POSITIONS)[number] | "Ukjent") => {
+      setSkipNextSnapshot(true); // Skip next real-time update
+
       setPotentialGroups((prev) => {
         const next: PotentialGroups = {
           Midt: prev.Midt.filter((n) => n !== name),
@@ -745,12 +747,15 @@ export default function Dashboard() {
         // Sync flat list state for filtering and stats
         const flat = flattenGroups(next);
         setPotentialPlayers(flat);
-        // Persist to Firestore (potensielle som flat liste)
+
+        // Persist to Firestore with current selection state
         if (auth.currentUser) {
           setDoc(doc(db, "teams", auth.currentUser.uid), {
             ...selection,
             potentialPlayers: flat,
-          }).catch(() => {});
+          }).catch((error) => {
+            console.error("Firebase save failed:", error);
+          });
         }
         return next;
       });
@@ -760,6 +765,8 @@ export default function Dashboard() {
 
   const removeFromAllGroups = useCallback(
     async (name: string) => {
+      setSkipNextSnapshot(true); // Skip next real-time update
+
       setPotentialGroups((prev) => {
         const next: PotentialGroups = {
           Midt: prev.Midt.filter((n) => n !== name),
@@ -771,11 +778,15 @@ export default function Dashboard() {
         };
         const flat = flattenGroups(next);
         setPotentialPlayers(flat);
+
+        // Use current selection state when saving
         if (auth.currentUser) {
           setDoc(doc(db, "teams", auth.currentUser.uid), {
             ...selection,
             potentialPlayers: flat,
-          }).catch(() => {});
+          }).catch((error) => {
+            console.error("Firebase save failed:", error);
+          });
         }
         return next;
       });
@@ -797,6 +808,8 @@ export default function Dashboard() {
   }
 
   const addToPotential = async (player: Player) => {
+    setSkipNextSnapshot(true); // Skip next real-time update to prevent race condition
+
     // Bestem standardgruppe fra ønsket posisjon
     const mapped = player.desiredPositions
       ? mapPositions(player.desiredPositions)
@@ -804,8 +817,34 @@ export default function Dashboard() {
     const target: Position | "Ukjent" =
       mapped.length > 0 ? (mapped[0] as Position) : "Ukjent";
 
-    // Update UI immediately
-    upsertToGroup(player.name, target);
+    // Update potential groups immediately
+    setPotentialGroups((prev) => {
+      const next: PotentialGroups = {
+        Midt: prev.Midt.filter((n) => n !== player.name),
+        Dia: prev.Dia.filter((n) => n !== player.name),
+        Legger: prev.Legger.filter((n) => n !== player.name),
+        Libero: prev.Libero.filter((n) => n !== player.name),
+        Kant: prev.Kant.filter((n) => n !== player.name),
+        Ukjent: prev.Ukjent.filter((n) => n !== player.name),
+      };
+      next[target] = [...next[target], player.name];
+
+      // Update flat list for consistency
+      const flat = flattenGroups(next);
+      setPotentialPlayers(flat);
+
+      // Save to Firebase with current selection state
+      if (auth.currentUser) {
+        setDoc(doc(db, "teams", auth.currentUser.uid), {
+          ...selection,
+          potentialPlayers: flat,
+        }).catch((error) => {
+          console.error("Firebase save failed:", error);
+        });
+      }
+
+      return next;
+    });
 
     const suffix = target !== "Ukjent" ? ` (${target})` : "";
     showNotification(
