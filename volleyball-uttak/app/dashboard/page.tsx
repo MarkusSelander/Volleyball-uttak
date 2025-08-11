@@ -1101,6 +1101,109 @@ export default function Dashboard() {
             </div>
           </div>
 
+          {/* Spillere etter posisjon */}
+          <div className="mt-8 bg-white rounded-xl shadow-sm overflow-hidden">
+            <div className="bg-gradient-to-r from-indigo-500 to-blue-600 px-6 py-4">
+              <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                <span>📋</span>
+                Spillere etter ønsket posisjon
+              </h2>
+            </div>
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+                {POSITIONS.map((position) => {
+                  const positionPlayers = players.filter((player) => {
+                    if (!player.desiredPositions) return false;
+                    const mapped = mapPositions(player.desiredPositions);
+                    return mapped.includes(position);
+                  });
+
+                  return (
+                    <div key={position} className="space-y-3">
+                      <h3 className="font-semibold text-lg flex items-center gap-2 pb-2 border-b border-gray-200">
+                        <span
+                          className={`w-6 h-6 ${positionColors[position]} rounded-full flex items-center justify-center text-white text-sm`}>
+                          {positionIcons[position]}
+                        </span>
+                        <span className="text-gray-800">{position}</span>
+                        <span className="text-sm text-gray-600">
+                          ({positionPlayers.length})
+                        </span>
+                      </h3>
+                      <div className="space-y-2 max-h-96 overflow-y-auto">
+                        {positionPlayers.length === 0 ? (
+                          <p className="text-gray-500 italic text-sm">
+                            Ingen spillere ønsker denne posisjonen
+                          </p>
+                        ) : (
+                          positionPlayers.map((player) => {
+                            const isAvailable = available.some(
+                              (p) => p.name === player.name
+                            );
+                            const isInTeam = POSITIONS.some((pos) =>
+                              selection[pos].includes(player.name)
+                            );
+                            const isPotential = potentialPlayers.includes(
+                              player.name
+                            );
+
+                            let statusColor = "";
+                            let statusText = "";
+                            let statusIcon = "";
+
+                            if (isInTeam) {
+                              statusColor = "bg-green-100 text-green-800 border-green-200";
+                              statusText = "I lag";
+                              statusIcon = "✅";
+                            } else if (isPotential) {
+                              statusColor = "bg-orange-100 text-orange-800 border-orange-200";
+                              statusText = "Potensiell";
+                              statusIcon = "⭐";
+                            } else if (isAvailable) {
+                              statusColor = "bg-blue-100 text-blue-800 border-blue-200";
+                              statusText = "Tilgjengelig";
+                              statusIcon = "👤";
+                            } else {
+                              statusColor = "bg-gray-100 text-gray-600 border-gray-200";
+                              statusText = "Ukjent";
+                              statusIcon = "❓";
+                            }
+
+                            return (
+                              <div
+                                key={player.name}
+                                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  {typeof player.rowNumber === "number" && (
+                                    <span
+                                      className="text-[11px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 shrink-0"
+                                      title={`Rad ${player.rowNumber}`}>
+                                      #{player.rowNumber}
+                                    </span>
+                                  )}
+                                  <span
+                                    className="font-medium text-gray-800 truncate text-sm"
+                                    title={player.name}>
+                                    {player.name}
+                                  </span>
+                                </div>
+                                <span
+                                  className={`text-xs px-2 py-1 rounded-full border shrink-0 ${statusColor}`}
+                                  title={statusText}>
+                                  {statusIcon}
+                                </span>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
           {/* Notification */}
           <Notification
             message={notification.message}

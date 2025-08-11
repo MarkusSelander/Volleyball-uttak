@@ -18,9 +18,13 @@ export default function StatsCard({
       <div className="flex items-center justify-between">
         <div>
           <p className="text-gray-600 text-xs md:text-sm">{title}</p>
-          <p className="text-2xl md:text-3xl font-bold text-gray-900">{value}</p>
+          <p className="text-2xl md:text-3xl font-bold text-gray-900">
+            {value}
+          </p>
           {description && (
-            <p className="text-gray-500 text-[11px] md:text-xs mt-1">{description}</p>
+            <p className="text-gray-500 text-[11px] md:text-xs mt-1">
+              {description}
+            </p>
           )}
         </div>
         <div
