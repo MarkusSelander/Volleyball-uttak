@@ -9,6 +9,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import LoadingSpinner from "../components/LoadingSpinner";
+import Link from "next/link";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -99,11 +100,11 @@ export default function LoginPage() {
           </button>
 
           <div className="mt-6 text-center">
-            <a
+            <Link
               href="/"
               className="text-white/70 hover:text-white text-sm transition-colors">
               ← Tilbake til forsiden
-            </a>
+            </Link>
           </div>
         </div>
 

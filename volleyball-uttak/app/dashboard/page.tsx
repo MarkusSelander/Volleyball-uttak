@@ -11,7 +11,7 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import LoadingSpinner from "../components/LoadingSpinner";
 import Notification from "../components/Notification";
 import PlayerCard from "../components/PlayerCard";
@@ -98,6 +98,7 @@ export default function Dashboard() {
     gender: "all", // "all", "male", "female"
     isStudent: "all", // "all", "yes", "no"
     previousTeam: "all", // "all", "yes", "no"
+    desiredLevel: "all", // "all", "1", "2", "3", etc.
   });
   const [notification, setNotification] = useState<{
     message: string;
@@ -154,57 +155,117 @@ export default function Dashboard() {
     return nameMatch || rowMatch;
   });
 
-  // Filterfunksjon som også tar hensyn til søketerm
-  const getFilteredPlayers = (playerList: Player[]) => {
-    return playerList.filter((player) => {
-      // Søketerm filter
-      if (searchTerm) {
-        const searchLower = searchTerm.toLowerCase();
-        const nameMatch = player.name.toLowerCase().includes(searchLower);
-        const rowMatch =
-          player.rowNumber?.toString().includes(searchTerm) || false;
-        if (!nameMatch && !rowMatch) return false;
-      }
+  // Filterfunksjon som også tar hensyn til søketerm - memoized
+  const getFilteredPlayers = useCallback(
+    (playerList: Player[]) => {
+      return playerList.filter((player) => {
+        // Søketerm filter
+        if (searchTerm) {
+          const searchLower = searchTerm.toLowerCase();
+          const nameMatch = player.name.toLowerCase().includes(searchLower);
+          const rowMatch =
+            player.rowNumber?.toString().includes(searchTerm) || false;
+          if (!nameMatch && !rowMatch) return false;
+        }
 
-      // Gender filter
-      if (filters.gender !== "all") {
-        if (
-          filters.gender === "male" &&
-          player.gender?.toLowerCase() !== "mann"
-        )
-          return false;
-        if (
-          filters.gender === "female" &&
-          player.gender?.toLowerCase() !== "kvinne"
-        )
-          return false;
-      }
+        // Gender filter
+        if (filters.gender !== "all") {
+          const genderLower = player.gender?.toLowerCase() || "";
+          if (
+            filters.gender === "male" &&
+            !genderLower.includes("mann") &&
+            !genderLower.includes("male") &&
+            !genderLower.includes("m")
+          )
+            return false;
+          if (
+            filters.gender === "female" &&
+            !genderLower.includes("kvinne") &&
+            !genderLower.includes("female") &&
+            !genderLower.includes("woman") &&
+            !genderLower.includes("k")
+          )
+            return false;
+        }
 
-      // Student filter
-      if (filters.isStudent !== "all") {
-        if (
-          filters.isStudent === "yes" &&
-          player.isStudent?.toLowerCase() !== "ja"
-        )
-          return false;
-        if (
-          filters.isStudent === "no" &&
-          player.isStudent?.toLowerCase() !== "nei"
-        )
-          return false;
-      }
+        // Student filter
+        if (filters.isStudent !== "all") {
+          const studentLower = player.isStudent?.toLowerCase() || "";
+          if (
+            filters.isStudent === "yes" &&
+            !studentLower.includes("ja") &&
+            !studentLower.includes("yes") &&
+            !studentLower.includes("y")
+          )
+            return false;
+          if (
+            filters.isStudent === "no" &&
+            !studentLower.includes("nei") &&
+            !studentLower.includes("no") &&
+            !studentLower.includes("n")
+          )
+            return false;
+        }
 
-      // Previous team filter (check if they played for NTNUI before)
-      if (filters.previousTeam !== "all") {
-        const playedBefore =
-          player.previousTeam?.toLowerCase().includes("ntnui") || false;
-        if (filters.previousTeam === "yes" && !playedBefore) return false;
-        if (filters.previousTeam === "no" && playedBefore) return false;
-      }
+        // Previous team filter (check if they played for NTNUI before)
+        if (filters.previousTeam !== "all") {
+          const teamLower = player.previousTeam?.toLowerCase() || "";
+          const playedBefore =
+            teamLower.includes("ntnui") ||
+            teamLower.includes("ja") ||
+            teamLower.includes("yes") ||
+            teamLower.includes("y") ||
+            (teamLower.length > 0 &&
+              !teamLower.includes("nei") &&
+              !teamLower.includes("no") &&
+              !teamLower.includes("n"));
+          if (filters.previousTeam === "yes" && !playedBefore) return false;
+          if (filters.previousTeam === "no" && playedBefore) return false;
+        }
 
-      return true;
-    });
-  };
+        // Desired level/division filter
+        if (filters.desiredLevel !== "all") {
+          const levelLower = player.desiredLevel?.toLowerCase() || "";
+          const levelNumber = player.desiredLevel?.toString() || "";
+          if (
+            filters.desiredLevel === "1" &&
+            !levelLower.includes("1") &&
+            !levelLower.includes("første") &&
+            !levelLower.includes("first") &&
+            !levelNumber.includes("1")
+          )
+            return false;
+          if (
+            filters.desiredLevel === "2" &&
+            !levelLower.includes("2") &&
+            !levelLower.includes("andre") &&
+            !levelLower.includes("second") &&
+            !levelNumber.includes("2")
+          )
+            return false;
+          if (
+            filters.desiredLevel === "3" &&
+            !levelLower.includes("3") &&
+            !levelLower.includes("tredje") &&
+            !levelLower.includes("third") &&
+            !levelNumber.includes("3")
+          )
+            return false;
+          if (
+            filters.desiredLevel === "4" &&
+            !levelLower.includes("4") &&
+            !levelLower.includes("fjerde") &&
+            !levelLower.includes("fourth") &&
+            !levelNumber.includes("4")
+          )
+            return false;
+        }
+
+        return true;
+      });
+    },
+    [searchTerm, filters]
+  );
 
   // Map for quick lookup of row numbers by player name
   const nameToRow = useMemo(() => {
@@ -415,12 +476,14 @@ export default function Dashboard() {
     }
   };
 
-  // Beregn tilgjengelige spillere (spillere som ikke er valgt til noen posisjon eller potensielle)
-  const available = getFilteredPlayers(players).filter(
-    (p) =>
-      !POSITIONS.some((pos) => selection[pos].includes(p.name)) &&
-      !potentialPlayers.includes(p.name)
-  );
+  // Beregn tilgjengelige spillere (spillere som ikke er valgt til noen posisjon eller potensielle) - memoized
+  const available = useMemo(() => {
+    return getFilteredPlayers(players).filter(
+      (p) =>
+        !POSITIONS.some((pos) => selection[pos].includes(p.name)) &&
+        !potentialPlayers.includes(p.name)
+    );
+  }, [getFilteredPlayers, players, selection, potentialPlayers]);
 
   // Stateful grupper for potensielle spillere (flytting mellom grupper i UI)
   type PotentialGroups = Record<
@@ -436,14 +499,17 @@ export default function Dashboard() {
     Ukjent: [],
   });
 
-  // Initier grupper én gang når data er lastet
-  useEffect(() => {
-    const allEmpty = Object.values(potentialGroups).every(
-      (arr) => arr.length === 0
-    );
-    if (!allEmpty) return; // allerede initialisert eller bruker har flyttet
-
-    if (players.length === 0) return;
+  // Initier grupper én gang når data er lastet - optimized with useMemo
+  const initializedGroups = useMemo(() => {
+    if (players.length === 0)
+      return {
+        Midt: [],
+        Dia: [],
+        Legger: [],
+        Libero: [],
+        Kant: [],
+        Ukjent: [],
+      };
 
     const groups: PotentialGroups = {
       Midt: [],
@@ -463,70 +529,112 @@ export default function Dashboard() {
       if (primary && groups[primary]) groups[primary].push(name);
       else groups["Ukjent"].push(name);
     }
-    setPotentialGroups(groups);
-  }, [players, potentialPlayers]);
+    return groups;
+  }, [players, potentialPlayers, mapPositions]);
 
-  const flattenGroups = (grps: PotentialGroups = potentialGroups) => {
-    const flat = [
-      ...grps.Midt,
-      ...grps.Dia,
-      ...grps.Legger,
-      ...grps.Libero,
-      ...grps.Kant,
-      ...grps.Ukjent,
-    ];
-    return Array.from(new Set(flat));
-  };
+  // Beregn filtrerte potensielle spillere grupper - memoized
+  const filteredPotentialGroups = useMemo(() => {
+    // Get all potential players as Player objects
+    const potentialPlayerObjects = potentialPlayers
+      .map((name) => players.find((p) => p.name === name))
+      .filter(Boolean) as Player[];
 
-  const upsertToGroup = async (
-    name: string,
-    target: (typeof POSITIONS)[number] | "Ukjent"
-  ) => {
-    setPotentialGroups((prev) => {
-      const next: PotentialGroups = {
-        Midt: prev.Midt.filter((n) => n !== name),
-        Dia: prev.Dia.filter((n) => n !== name),
-        Legger: prev.Legger.filter((n) => n !== name),
-        Libero: prev.Libero.filter((n) => n !== name),
-        Kant: prev.Kant.filter((n) => n !== name),
-        Ukjent: prev.Ukjent.filter((n) => n !== name),
-      };
-      next[target] = [...next[target], name];
-      // Sync flat list state for filtering and stats
-      const flat = flattenGroups(next);
-      setPotentialPlayers(flat);
-      // Persist to Firestore (potensielle som flat liste)
-      if (auth.currentUser) {
-        setDoc(doc(db, "teams", auth.currentUser.uid), {
-          ...selection,
-          potentialPlayers: flat,
-        }).catch(() => {});
-      }
-      return next;
-    });
-  };
+    // Apply filters
+    const filteredPotentials = getFilteredPlayers(potentialPlayerObjects);
+    const filteredNames = new Set(filteredPotentials.map((p) => p.name));
 
-  const removeFromAllGroups = async (name: string) => {
-    setPotentialGroups((prev) => {
-      const next: PotentialGroups = {
-        Midt: prev.Midt.filter((n) => n !== name),
-        Dia: prev.Dia.filter((n) => n !== name),
-        Legger: prev.Legger.filter((n) => n !== name),
-        Libero: prev.Libero.filter((n) => n !== name),
-        Kant: prev.Kant.filter((n) => n !== name),
-        Ukjent: prev.Ukjent.filter((n) => n !== name),
-      };
-      const flat = flattenGroups(next);
-      setPotentialPlayers(flat);
-      if (auth.currentUser) {
-        setDoc(doc(db, "teams", auth.currentUser.uid), {
-          ...selection,
-          potentialPlayers: flat,
-        }).catch(() => {});
-      }
-      return next;
-    });
-  };
+    // Filter each group
+    return {
+      ...potentialGroups,
+      Midt: potentialGroups.Midt.filter((name) => filteredNames.has(name)),
+      Dia: potentialGroups.Dia.filter((name) => filteredNames.has(name)),
+      Legger: potentialGroups.Legger.filter((name) => filteredNames.has(name)),
+      Libero: potentialGroups.Libero.filter((name) => filteredNames.has(name)),
+      Kant: potentialGroups.Kant.filter((name) => filteredNames.has(name)),
+      Ukjent: potentialGroups.Ukjent.filter((name) => filteredNames.has(name)),
+    };
+  }, [getFilteredPlayers, players, potentialPlayers, potentialGroups]);
+
+  // Update groups only when needed
+  useEffect(() => {
+    const allEmpty = Object.values(potentialGroups).every(
+      (arr) => arr.length === 0
+    );
+    if (
+      allEmpty &&
+      Object.values(initializedGroups).some((arr) => arr.length > 0)
+    ) {
+      setPotentialGroups(initializedGroups);
+    }
+  }, [initializedGroups, potentialGroups]);
+
+  const flattenGroups = useCallback(
+    (grps: PotentialGroups = potentialGroups) => {
+      const flat = [
+        ...grps.Midt,
+        ...grps.Dia,
+        ...grps.Legger,
+        ...grps.Libero,
+        ...grps.Kant,
+        ...grps.Ukjent,
+      ];
+      return Array.from(new Set(flat));
+    },
+    [potentialGroups]
+  );
+
+  const upsertToGroup = useCallback(
+    async (name: string, target: (typeof POSITIONS)[number] | "Ukjent") => {
+      setPotentialGroups((prev) => {
+        const next: PotentialGroups = {
+          Midt: prev.Midt.filter((n) => n !== name),
+          Dia: prev.Dia.filter((n) => n !== name),
+          Legger: prev.Legger.filter((n) => n !== name),
+          Libero: prev.Libero.filter((n) => n !== name),
+          Kant: prev.Kant.filter((n) => n !== name),
+          Ukjent: prev.Ukjent.filter((n) => n !== name),
+        };
+        next[target] = [...next[target], name];
+        // Sync flat list state for filtering and stats
+        const flat = flattenGroups(next);
+        setPotentialPlayers(flat);
+        // Persist to Firestore (potensielle som flat liste)
+        if (auth.currentUser) {
+          setDoc(doc(db, "teams", auth.currentUser.uid), {
+            ...selection,
+            potentialPlayers: flat,
+          }).catch(() => {});
+        }
+        return next;
+      });
+    },
+    [flattenGroups, selection]
+  );
+
+  const removeFromAllGroups = useCallback(
+    async (name: string) => {
+      setPotentialGroups((prev) => {
+        const next: PotentialGroups = {
+          Midt: prev.Midt.filter((n) => n !== name),
+          Dia: prev.Dia.filter((n) => n !== name),
+          Legger: prev.Legger.filter((n) => n !== name),
+          Libero: prev.Libero.filter((n) => n !== name),
+          Kant: prev.Kant.filter((n) => n !== name),
+          Ukjent: prev.Ukjent.filter((n) => n !== name),
+        };
+        const flat = flattenGroups(next);
+        setPotentialPlayers(flat);
+        if (auth.currentUser) {
+          setDoc(doc(db, "teams", auth.currentUser.uid), {
+            ...selection,
+            potentialPlayers: flat,
+          }).catch(() => {});
+        }
+        return next;
+      });
+    },
+    [flattenGroups, selection]
+  );
 
   const totalSelected = POSITIONS.reduce(
     (sum, pos) => sum + selection[pos].length,
@@ -1023,17 +1131,53 @@ export default function Dashboard() {
                 </select>
               </div>
 
+              <div className="flex items-center gap-2">
+                <label
+                  htmlFor="desired-level-filter"
+                  className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Ønsket divisjon:
+                </label>
+                <select
+                  id="desired-level-filter"
+                  value={filters.desiredLevel}
+                  onChange={(e) =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      desiredLevel: e.target.value,
+                    }))
+                  }
+                  className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                  <option value="all">Alle</option>
+                  <option value="1">1. divisjon</option>
+                  <option value="2">2. divisjon</option>
+                  <option value="3">3. divisjon</option>
+                  <option value="4">4. divisjon</option>
+                </select>
+              </div>
+
               <button
                 onClick={() =>
                   setFilters({
                     gender: "all",
                     isStudent: "all",
                     previousTeam: "all",
+                    desiredLevel: "all",
                   })
                 }
                 className="px-3 py-1 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                 Nullstill
               </button>
+
+              {/* Debug info - remove in production */}
+              {players.length > 0 && (
+                <div className="text-xs text-gray-500 dark:text-gray-400 ml-4">
+                  Debug: Første spiller - Kjønn: &ldquo;{players[0]?.gender}
+                  &rdquo;, Student: &ldquo;{players[0]?.isStudent}&rdquo;,
+                  Forrige lag: &ldquo;
+                  {players[0]?.previousTeam}&rdquo;, Ønsket nivå: &ldquo;
+                  {players[0]?.desiredLevel}&rdquo;
+                </div>
+              )}
             </div>
           </div>
 
@@ -1140,64 +1284,68 @@ export default function Dashboard() {
                       </p>
                     </div>
                   ) : (
-                    <div className="space-y-6">
-                      {POSITIONS.map((pos) => (
-                        <PotentialPositionSection
-                          key={pos}
-                          position={pos as Position}
-                          count={potentialGroups[pos].length}
-                          colorClass={positionColors[pos]}
-                          icon={positionIcons[pos]}>
-                          {potentialGroups[pos].length === 0 ? (
-                            <p className="text-gray-500 italic">
-                              Ingen potensielle
-                            </p>
-                          ) : (
-                            <div className="space-y-2">
-                              {potentialGroups[pos].map((playerName, index) => (
-                                <DraggablePotentialPlayer
-                                  key={playerName}
-                                  playerName={playerName}
-                                  rowNumber={nameToRow[playerName]}
-                                  positionIcons={positionIcons}
-                                  POSITIONS={POSITIONS}
-                                  moveFromPotential={moveFromPotential}
-                                  removeFromPotential={removeFromPotential}
-                                  isSaving={isSaving}
-                                  index={index}
-                                />
-                              ))}
-                            </div>
-                          )}
-                        </PotentialPositionSection>
-                      ))}
-
-                      {potentialGroups["Ukjent"].length > 0 && (
-                        <PotentialPositionSection
-                          position={"Ukjent" as Position}
-                          count={potentialGroups["Ukjent"].length}
-                          colorClass={"bg-gray-400"}
-                          icon={"?"}>
-                          <div className="space-y-2">
-                            {potentialGroups["Ukjent"].map(
-                              (playerName, index) => (
-                                <DraggablePotentialPlayer
-                                  key={playerName}
-                                  playerName={playerName}
-                                  rowNumber={nameToRow[playerName]}
-                                  positionIcons={positionIcons}
-                                  POSITIONS={POSITIONS}
-                                  moveFromPotential={moveFromPotential}
-                                  removeFromPotential={removeFromPotential}
-                                  isSaving={isSaving}
-                                  index={index}
-                                />
-                              )
+                    <>
+                      <div className="space-y-6">
+                        {POSITIONS.map((pos) => (
+                          <PotentialPositionSection
+                            key={pos}
+                            position={pos as Position}
+                            count={filteredPotentialGroups[pos].length}
+                            colorClass={positionColors[pos]}
+                            icon={positionIcons[pos]}>
+                            {filteredPotentialGroups[pos].length === 0 ? (
+                              <p className="text-gray-500 italic">
+                                Ingen potensielle
+                              </p>
+                            ) : (
+                              <div className="space-y-2">
+                                {filteredPotentialGroups[pos].map(
+                                  (playerName, index) => (
+                                    <DraggablePotentialPlayer
+                                      key={playerName}
+                                      playerName={playerName}
+                                      rowNumber={nameToRow[playerName]}
+                                      positionIcons={positionIcons}
+                                      POSITIONS={POSITIONS}
+                                      moveFromPotential={moveFromPotential}
+                                      removeFromPotential={removeFromPotential}
+                                      isSaving={isSaving}
+                                      index={index}
+                                    />
+                                  )
+                                )}
+                              </div>
                             )}
-                          </div>
-                        </PotentialPositionSection>
-                      )}
-                    </div>
+                          </PotentialPositionSection>
+                        ))}
+
+                        {filteredPotentialGroups["Ukjent"].length > 0 && (
+                          <PotentialPositionSection
+                            position={"Ukjent" as Position}
+                            count={filteredPotentialGroups["Ukjent"].length}
+                            colorClass={"bg-gray-400"}
+                            icon={"?"}>
+                            <div className="space-y-2">
+                              {filteredPotentialGroups["Ukjent"].map(
+                                (playerName, index) => (
+                                  <DraggablePotentialPlayer
+                                    key={playerName}
+                                    playerName={playerName}
+                                    rowNumber={nameToRow[playerName]}
+                                    positionIcons={positionIcons}
+                                    POSITIONS={POSITIONS}
+                                    moveFromPotential={moveFromPotential}
+                                    removeFromPotential={removeFromPotential}
+                                    isSaving={isSaving}
+                                    index={index}
+                                  />
+                                )
+                              )}
+                            </div>
+                          </PotentialPositionSection>
+                        )}
+                      </div>
+                    </>
                   )}
                 </PotentialDropZone>
               </div>

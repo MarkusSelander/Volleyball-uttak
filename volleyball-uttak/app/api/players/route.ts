@@ -138,14 +138,15 @@ export async function GET() {
         },
       }
     );
-  } catch (err: any) {
-    console.error("[/api/players] Feil:", err?.message, err?.stack);
+  } catch (err: unknown) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    console.error("[/api/players] Feil:", error.message, error.stack);
     return NextResponse.json(
       {
         players: fallbackPlayers,
         source: "fallback",
         message: "Feil ved henting fra Google Sheets – viser eksempeldata.",
-        error: err?.message ?? "Ukjent feil",
+        error: error.message ?? "Ukjent feil",
       },
       { status: 200 }
     );
