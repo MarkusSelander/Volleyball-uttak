@@ -1,194 +1,238 @@
-# Volleyball Uttak - Lagadministrasjon
+# 🏐 NTNUI Volleyball Uttak - Applikasjon
 
-En moderne og dynamisk webapplikasjon for å administrere volleyball lag og spillere. Bygget med Next.js, TypeScript, Tailwind CSS og Firebase.
+Dette er hovedapplikasjonen for NTNUI Volleyball laguttak systemet. En Next.js applikasjon som tilbyr et komplett dashboard for lagadministrasjon med real-time synkronisering og Google Sheets integrasjon.
 
-## 🚀 Funksjoner
-
-### ✨ Nye forbedringer
-
-- **Moderne design** med gradient bakgrunner og glassmorfisme effekter
-- **Animasjoner** og smooth transitions for bedre brukeropplevelse
-- **Responsivt design** som fungerer på alle enheter
-- **Loading states** og feedback til brukeren
-- **Notification system** for å vise meldinger
-- **Modulær arkitektur** med gjenbrukbare komponenter
-- **Google Sheets integrasjon** for spillerdata
-- **Fallback data** hvis Google Sheets ikke er konfigurert
-
-### 🏐 Kjernefunksjoner
-
-- **Spilleradministrasjon** - Hold oversikt over alle spillere
-- **Laguttak** - Gjør smarte uttak basert på posisjoner
-- **Posisjonshåndtering** - Midt, Dia, Legger, Libero, Kant
-- **Real-time oppdateringer** - Endringer lagres automatisk
-- **Google Authentication** - Sikker innlogging
-- **Google Sheets sync** - Hent spillere direkte fra spreadsheet
-
-## 🛠️ Teknisk Stack
-
-- **Frontend**: Next.js 15, React 19, TypeScript
-- **Styling**: Tailwind CSS 4 med custom animasjoner
-- **Backend**: Firebase (Authentication, Firestore)
-- **Data**: Google Sheets API for spillerdata
-- **Deployment**: Vercel-ready
-
-## 🎨 Design Features
-
-### Animasjoner
-
-- Fade-in effekter for smooth loading
-- Hover animations på kort og knapper
-- Loading spinners med custom styling
-- Staggered animations for lister
-
-### Farger og Gradients
-
-- Primary gradient: Blå-lilla (hovedside)
-- Secondary gradient: Rosa-rød (innlogging)
-- Accent gradient: Blå-cyan (dashboard)
-- Glassmorfisme effekter
-
-### Responsivt Design
-
-- Mobile-first approach
-- Grid layouts som tilpasser seg skjermstørrelse
-- Touch-friendly knapper og interaksjoner
-
-## 📱 Komponenter
-
-### Gjenbrukbare Komponenter
-
-- `StatsCard` - Viser statistikk med ikoner
-- `PlayerCard` - Spiller-kort med posisjonsvalg
-- `PositionSection` - Posisjon-seksjoner i laguttak
-- `LoadingSpinner` - Custom loading spinner
-- `Notification` - Toast notifications
-
-### Sidekomponenter
-
-- **Hovedsiden** - Landing page med funksjoner
-- **Innlogging** - Google OAuth med loading states
-- **Dashboard** - Hovedadministrasjonsside
-
-## 🚀 Kom i gang
-
-### 1. Installer avhengigheter
+## 🚀 Rask Start
 
 ```bash
+# Installer avhengigheter
 npm install
-```
 
-### 2. Konfigurer Firebase
+# Kopier environment template
+cp .env.example .env.local
 
-- Opprett et Firebase prosjekt
-- Legg til Authentication (Google)
-- Opprett Firestore database
-- Kopier config til `lib/firebase.ts`
+# Konfigurer environment variabler (se under)
+# Rediger .env.local med dine verdier
 
-### 3. Konfigurer Google Sheets (valgfritt)
-
-Se [GOOGLE_SHEETS_SETUP.md](./GOOGLE_SHEETS_SETUP.md) for detaljert guide.
-
-**Hurtig oppsett:**
-
-1. Opprett `.env.local` fil i prosjektroten
-2. Legg til dine Google Sheets credentials
-3. Applikasjonen vil automatisk bruke eksempel-data hvis Google Sheets ikke er konfigurert
-
-### 4. Start utviklingsserver
-
-```bash
+# Start utviklingsserver
 npm run dev
 ```
 
-### 5. Bygg for produksjon
+Åpne [http://localhost:3000](http://localhost:3000) i nettleseren.
+
+## ⚙️ Environment Konfigurering
+
+### Firebase Setup
+
+1. Opprett et Firebase prosjekt på [Firebase Console](https://console.firebase.google.com)
+2. Aktiver Authentication med Google sign-in
+3. Opprett en Firestore database
+4. Kopier konfigurasjonen til `.env.local`:
 
 ```bash
-npm run build
-npm start
+NEXT_PUBLIC_FIREBASE_API_KEY=din_api_key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=ditt-prosjekt.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=ditt-prosjekt-id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=ditt-prosjekt.firebasestorage.app
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=123456789
+NEXT_PUBLIC_FIREBASE_APP_ID=1:123456789:web:abcdef123456
+NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=G-ABCDEF1234
 ```
 
-## 📊 Brukergrensesnitt
+### Google Sheets Setup
 
-### Hovedsiden
+For å koble til NTNUI påmeldingsskjema:
 
-- Hero section med gradient bakgrunn
-- Funksjoner-kort med glassmorfisme
-- Call-to-action knapp
-- Animerte bakgrunnselementer
+1. Opprett service account i [Google Cloud Console](https://console.cloud.google.com)
+2. Aktiver Google Sheets API
+3. Last ned service account nøkkel (JSON format)
+4. Del Google Sheet med service account email
+5. Konfigurer i `.env.local`:
 
-### Dashboard
+```bash
+GOOGLE_SERVICE_ACCOUNT_EMAIL=service-account@prosjekt.iam.gserviceaccount.com
+GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+GOOGLE_SHEET_ID=1abc...xyz
+GOOGLE_SHEET_RANGE='Skjemasvar 1'!A:T
+```
 
-- Statistikk-kort øverst
-- Datakilde informasjon (Google Sheets eller eksempel-data)
-- To-kolonne layout (tilgjengelige spillere + laguttak)
-- Fargekodet posisjoner med ikoner
-- Real-time oppdateringer
+Se [GOOGLE_SHEETS_SETUP.md](GOOGLE_SHEETS_SETUP.md) for detaljerte instruksjoner.
 
-### Innlogging
+## 🏗️ Prosjektstruktur
 
-- Glassmorfisme login-kort
-- Google OAuth integrasjon
-- Loading states og error handling
-- Responsivt design
+```
+app/                      # Next.js 13+ App Router
+├── dashboard/           # Hovedapplikasjon
+│   └── page.tsx        # Dashboard med drag-and-drop
+├── components/         # Gjenbrukbare komponenter
+│   ├── NavHeader.tsx   # Navigasjon (mobile/desktop)
+│   ├── PlayerCard.tsx  # Spillerkort med drag-funksjonalitet
+│   ├── PositionSection.tsx # Posisjonsseksjoner
+│   ├── LoadingSpinner.tsx
+│   ├── Notification.tsx
+│   └── StatsCard.tsx
+├── api/               # API routes
+│   └── players/       # Google Sheets data endpoint
+├── login/            # Autentisering
+├── spiller-info/     # Spillerinformasjon
+├── uttak/           # Laguttak visning
+├── globals.css      # Global styling
+└── layout.tsx       # Root layout
 
-## 🎯 Posisjoner
+lib/
+└── firebase.ts      # Firebase konfigurering og auth
 
-- **Midt** 🏐 - Midtspillere
-- **Dia** ⚡ - Diagonaler
-- **Legger** 🎯 - Leggere
-- **Libero** 🛡️ - Liberoer
-- **Kant** 🔥 - Kantspillere
+public/              # Statiske assets
+├── ntnui-logo.png
+└── various-icons/
+```
+
+## 🎯 Hovedfunksjoner
+
+### Dashboard (`/dashboard`)
+
+- **Drag & Drop Interface** - Flytt spillere mellom posisjoner og lister
+- **Real-time Sync** - Automatisk synkronisering mellom enheter
+- **Advanced Filtering** - Filtrer på kjønn, studentstatus, erfaring, ønsket divisjon
+- **Search Functionality** - Søk på navn eller registreringsnummer
+- **Statistics Overview** - Live statistikk over spillere
+- **Position Analysis** - Se spillere gruppert etter ønskede posisjoner
+
+### Spillerinformasjon (`/spiller-info`)
+
+- Detaljert visning av alle påmeldte spillere
+- Sortérbart og filtrerbart spilleroversikt
+- Eksport av spillerdata
+
+### Laguttak (`/uttak`)
+
+- Oversikt over nåværende laguttak
+- Posisjonsoversikt med spillernavn
+- Print-vennlig format
+
+## 📱 Mobile Optimalisering
+
+Applikasjonen er fullstendig optimalisert for mobile enheter:
+
+- **Touch Sensors** - Forbedret drag-and-drop for touch-enheter
+- **Responsive Design** - Tilpasser seg alle skjermstørrelser
+- **Mobile Navigation** - Sidebar navigasjon på små skjermer
+- **Touch Targets** - Store touch-områder for bedre brukeropplevelse
+
+## 🔄 Real-time Funksjonalitet
+
+Implementert med Firebase Firestore:
+
+- **Live Updates** - Endringer vises umiddelbart på alle tilkoblede enheter
+- **Conflict Resolution** - Automatisk håndtering av samtidige endringer
+- **Offline Support** - Fungerer også uten internettforbindelse
+- **Data Persistence** - Lagrer endringer permanent i skyen
 
 ## 🔧 Utvikling
 
-### Mappestruktur
+### Tilgjengelige Scripts
 
-```
-app/
-├── components/          # Gjenbrukbare komponenter
-├── dashboard/          # Dashboard side
-├── login/             # Innloggingsside
-├── api/               # API routes
-│   └── players/       # Google Sheets API
-├── globals.css        # Global styling
-├── layout.tsx         # Root layout
-└── page.tsx           # Hovedsiden
-lib/
-├── firebase.ts        # Firebase konfigurasjon
-GOOGLE_SHEETS_SETUP.md # Google Sheets oppsett guide
+```bash
+# Utvikling
+npm run dev          # Start dev server med hot reload
+npm run build        # Build for production
+npm run start        # Start production server
+npm run lint         # Kjør ESLint
+
+# Testing
+npm run test         # Kjør tester (hvis implementert)
 ```
 
-### Styling
+### Code Style
 
-- Custom CSS variabler for farger
-- Tailwind CSS med custom utilities
-- Animasjoner definert i globals.css
-- Responsive breakpoints
+Prosjektet bruker:
 
-### API Endepunkter
+- **TypeScript** for type safety
+- **ESLint** for code linting
+- **Prettier** for code formatting (anbefalt)
+- **Tailwind CSS** for styling
 
-- `GET /api/players` - Henter spillere fra Google Sheets eller fallback data
+### Debugging
 
-## 📈 Fremtidige Forbedringer
+Aktivér debug logging ved å legge til i `.env.local`:
 
-- [ ] Dark mode toggle
-- [ ] Spillerstatistikk og historikk
-- [ ] Eksport av laguttak
-- [ ] Team management
-- [ ] Push notifications
-- [ ] Offline support
-- [ ] Automatisk sync med Google Sheets
-- [ ] Spillerfoto og profilinformasjon
+```bash
+DEBUG=true
+```
+
+## 🚢 Deployment
+
+### Vercel (Anbefalt)
+
+1. Koble GitHub repo til Vercel
+2. Sett environment variabler i Vercel dashboard
+3. Deploy automatisk på hver push til main
+
+### Manuell Deploy
+
+```bash
+npm run build
+npm run start
+```
+
+Se [VERCEL_ENV_GUIDE.md](VERCEL_ENV_GUIDE.md) for deployment instruksjoner.
+
+## 🔐 Sikkerhet og Privacy
+
+- **Environment Variables** - Sensitive data lagres sikkert i `.env.local`
+- **Firebase Auth** - Kun autoriserte brukere har tilgang
+- **Firestore Rules** - Database beskyttet med security rules
+- **API Rate Limiting** - Beskyttelse mot misbruk av Google Sheets API
+
+## 🐛 Feilsøking
+
+### Vanlige Problemer
+
+**Firebase Connection Error**
+
+- Sjekk at alle Firebase environment variabler er satt
+- Verifiser at Firebase prosjekt er konfigurert riktig
+
+**Google Sheets API Error**
+
+- Kontroller at service account har tilgang til sheet
+- Verifiser at Sheets API er aktivert
+- Sjekk at GOOGLE_SHEET_ID er riktig
+
+**Build Errors**
+
+- Kjør `npm ci` for å reinstallere dependencies
+- Sjekk at alle TypeScript feil er løst
+
+### Performance
+
+Applikasjonen er optimalisert for ytelse:
+
+- **Memoization** - React komponenter er memoized der det er hensiktsmessig
+- **Virtual Scrolling** - Effektiv rendering av store spillerlister
+- **Code Splitting** - Automatisk splitting av JavaScript bundles
+- **Image Optimization** - Next.js optimaliserer bilder automatisk
+
+## 📊 Caching og API
+
+- **Google Sheets Data** - Caches i 60 sekunder for bedre ytelse
+- **Player Data** - Optimistiske updates for øyeblikkelig responsivitet
+- **Firebase Data** - Real-time listeners for live synkronisering
 
 ## 🤝 Bidrag
 
-1. Fork prosjektet
-2. Opprett feature branch
-3. Commit endringer
-4. Push til branch
-5. Opprett Pull Request
+For å bidra til prosjektet:
 
-## 📄 Lisens
+1. Fork repositoryet
+2. Lag en feature branch
+3. Følg TypeScript og ESLint regler
+4. Test grundig på både desktop og mobile
+5. Opprett Pull Request med beskrivelse
 
-Dette prosjektet er lisensiert under MIT License.
+## � Versioning
+
+Prosjektet følger [Semantic Versioning](https://semver.org/).
+
+---
+
+Utviklet med ❤️ for NTNUI Volleyball

@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -39,3 +40,34 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Firebase
+.firebase/
+firebase-debug.log*
+.runtimeconfig.json
+
+# Google Cloud credentials and secrets
+*-credentials.json
+*.secret.json
+service-account*.json
+*-key.json
+
+# Local configuration files
+config.local.js
+config.local.ts
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# IDE files
+.vscode/settings.json
+.vscode/launch.json
+.idea/
+
+# System files
+.AppleDouble
+.LSOverride
+Thumbs.db
+Desktop.ini
