@@ -8,6 +8,7 @@ import {
   useDroppable,
 } from "@dnd-kit/core";
 import { doc, getDoc, setDoc } from "firebase/firestore";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -16,7 +17,6 @@ import Notification from "../components/Notification";
 import PlayerCard from "../components/PlayerCard";
 import PositionSection from "../components/PositionSection";
 import StatsCard from "../components/StatsCard";
-import Image from "next/image";
 
 const POSITIONS = ["Midt", "Dia", "Legger", "Libero", "Kant"] as const;
 
@@ -702,7 +702,7 @@ export default function Dashboard() {
                 <Image
                   src="/ntnui-logo.png"
                   alt="NTNUI logo"
-                  width={100} 
+                  width={100}
                   height={64}
                   className="rounded-md bg-white/20 p-2"
                   priority

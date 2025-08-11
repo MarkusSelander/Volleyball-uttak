@@ -4,8 +4,8 @@ import { auth, db, onAuthStateChanged, signOut } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import LoadingSpinner from "../components/LoadingSpinner";
 
 // Filter operators (same as Spiller info)
@@ -59,6 +59,48 @@ const prettyLabel = (key: string) => {
   return s.charAt(0).toUpperCase() + s.slice(1);
 };
 
+// Convert Excel date to DD.MM.YYYY
+const toDDMMYYYY = (d: Date) => {
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  return `${dd}.${mm}.${yyyy}`;
+};
+
+// Format date value for display
+const formatDate = (v: any) => {
+  if (v === null || v === undefined || v === "") return "";
+  if (typeof v === "number") {
+    // Excel serial date -> JS Date (Excel epoch 1899-12-30)
+    const ms = Math.round((v - 25569) * 86400 * 1000);
+    const d = new Date(ms);
+    return isNaN(d.getTime()) ? String(v) : toDDMMYYYY(d);
+  }
+  // Try parse ISO or locale strings
+  const d = new Date(v);
+  return isNaN(d.getTime()) ? String(v) : toDDMMYYYY(d);
+};
+
+// Format phone number for display
+const formatPhone = (v: any) => {
+  if (v === null || v === undefined || v === "") return "";
+  const s = String(v).trim();
+  const hasPlus = s.startsWith("+");
+  const digits = s.replace(/\D/g, "");
+  if (!digits) return s;
+  // Special-case Norwegian +47
+  if (hasPlus && digits.startsWith("47") && digits.length >= 10) {
+    const rest = digits.slice(2);
+    return "+47 " + rest.replace(/(\d{2})(?=\d)/g, "$1 ").trim();
+  }
+  if (digits.length === 8) {
+    return (
+      (hasPlus ? "+" : "") + digits.replace(/(\d{2})(?=\d)/g, "$1 ").trim()
+    );
+  }
+  return (hasPlus ? "+" : "") + digits.replace(/(\d{2})(?=\d)/g, "$1 ").trim();
+};
+
 export default function UttakPage() {
   const router = useRouter();
 
@@ -78,10 +120,14 @@ export default function UttakPage() {
         const res = await fetch("/api/players");
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        if (Array.isArray(data?.detailedPlayers) && data.detailedPlayers.length) {
+        if (
+          Array.isArray(data?.detailedPlayers) &&
+          data.detailedPlayers.length
+        ) {
           if (!cancelled) setRows(data.detailedPlayers);
         } else if (Array.isArray(data?.players)) {
-          if (!cancelled) setRows(data.players.map((p: any) => ({ name: p.name })));
+          if (!cancelled)
+            setRows(data.players.map((p: any) => ({ name: p.name })));
         } else {
           if (!cancelled) setRows([]);
         }
@@ -109,9 +155,17 @@ export default function UttakPage() {
         const ref = doc(db, "teams", user.uid);
         const snap = await getDoc(ref);
         if (snap.exists()) {
-          const data = snap.data() as Selection & { potentialPlayers?: string[] };
+          const data = snap.data() as Selection & {
+            potentialPlayers?: string[];
+          };
           // Ensure all keys exist
-          const empty: Selection = { Midt: [], Dia: [], Legger: [], Libero: [], Kant: [] };
+          const empty: Selection = {
+            Midt: [],
+            Dia: [],
+            Legger: [],
+            Libero: [],
+            Kant: [],
+          };
           setSelection({ ...empty, ...data });
         } else {
           setSelection({ Midt: [], Dia: [], Legger: [], Libero: [], Kant: [] });
@@ -139,32 +193,55 @@ export default function UttakPage() {
     return set;
   }, [selection]);
 
+  // Map name -> selected position (first match by POSITIONS order)
+  const nameToPosition = useMemo(() => {
+    const m = new Map<string, string>();
+    if (!selection) return m;
+    for (const pos of POSITIONS) {
+      for (const n of selection[pos] || []) {
+        if (!m.has(n)) m.set(n, pos);
+      }
+    }
+    return m;
+  }, [selection]);
+
   // Selected rows from spreadsheet
   const baseRows = useMemo(() => {
-    if (!rows.length || selectedNameSet.size === 0) return [] as Record<string, any>[];
+    if (!rows.length || selectedNameSet.size === 0)
+      return [] as Record<string, any>[];
     return rows.filter((r) => selectedNameSet.has(String((r as any).name)));
   }, [rows, selectedNameSet]);
 
-  // Columns (same as Spiller info). Exclude email + level, keep narrow for rowNumber
-  const columns = useMemo(() => {
-    const source = baseRows.length ? baseRows : rows;
-    if (!source.length) return [] as { key: string; label: string; narrow?: boolean }[];
-    const keys = Object.keys(source[0] || {});
-    const exclude = new Set(["email", "level"]);
-    const preferred = ["rowNumber", "name"];
-    const order = [
-      ...preferred.filter((k) => keys.includes(k)),
-      ...keys.filter((k) => !preferred.includes(k)),
-    ].filter((k) => !exclude.has(k.toLowerCase()));
-    return order.map((k) => ({ key: k, label: prettyLabel(k), narrow: k === "rowNumber" }));
-  }, [rows, baseRows]);
+  // Attach computed selected position to each row
+  const preparedRows = useMemo(() => {
+    return baseRows.map((r) => ({
+      ...r,
+      selectedPosition: nameToPosition.get(String((r as any).name)) || "",
+    }));
+  }, [baseRows, nameToPosition]);
 
-  // Apply filters on baseRows
+  // Columns: only Rad, Navn, Fødselsdato, Kjønn, Telefon, Mail (col P), Student, Posisjon
+  const columns = useMemo(() => {
+    return [
+      { key: "rowNumber", label: "Rad", narrow: true },
+      { key: "name", label: "Navn" },
+      { key: "birthDate", label: "Fødselsdato" },
+      { key: "gender", label: "Kjønn" },
+      { key: "phone", label: "Telefon" },
+      { key: "attendance", label: "Mail" },
+      { key: "isStudent", label: "Student" },
+      { key: "selectedPosition", label: "Posisjon" },
+    ];
+  }, []);
+
+  // Apply filters on preparedRows
   const filteredRows = useMemo(() => {
-    const data = baseRows;
+    const data = preparedRows;
     if (!data.length) return data;
 
-    const active = Object.entries(filters).filter(([, f]) => f && f.value !== "");
+    const active = Object.entries(filters).filter(
+      ([, f]) => f && f.value !== ""
+    );
     if (!active.length) return data;
 
     const toNum = (v: any) => {
@@ -215,7 +292,7 @@ export default function UttakPage() {
     return data.filter((row) =>
       active.every(([col, f]) => match((row as any)[col], f as Filter))
     );
-  }, [baseRows, filters]);
+  }, [preparedRows, filters]);
 
   const setFilter = (col: string, patch: Partial<Filter>) => {
     setFilters((prev) => {
@@ -256,20 +333,17 @@ export default function UttakPage() {
             <div className="flex items-center gap-2">
               <Link
                 href="/dashboard"
-                className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
-              >
+                className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors">
                 Dashboard
               </Link>
               <Link
                 href="/spiller-info"
-                className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
-              >
+                className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors">
                 Spiller info
               </Link>
               <button
                 onClick={() => signOut(auth)}
-                className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
-              >
+                className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors">
                 Logg ut
               </button>
             </div>
@@ -289,13 +363,14 @@ export default function UttakPage() {
         ) : (
           <div className="bg-white rounded-xl shadow-sm overflow-hidden">
             <div className="bg-gradient-to-r from-purple-500 to-pink-600 px-6 py-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-white">Uttatte spillere</h2>
+              <h2 className="text-lg font-semibold text-white">
+                Uttatte spillere
+              </h2>
               {anyFilterActive && (
                 <button
                   onClick={() => setFilters({})}
                   className="text-sm px-3 py-1 rounded bg-white/20 hover:bg-white/30 text-white"
-                  title="Fjern alle filtre"
-                >
+                  title="Fjern alle filtre">
                   Tøm filtre
                 </button>
               )}
@@ -311,28 +386,32 @@ export default function UttakPage() {
                         <th
                           key={col.key}
                           className="text-left font-semibold text-gray-700 px-3 py-2 whitespace-nowrap border-b align-top relative"
-                          style={col.narrow ? { width: "1%" } : undefined}
-                        >
+                          style={col.narrow ? { width: "1%" } : undefined}>
                           <div
                             className={
                               col.narrow
                                 ? "flex items-center gap-2"
                                 : "flex items-center gap-2 max-w-[240px] truncate"
                             }
-                            title={col.label}
-                          >
+                            title={col.label}>
                             <span className="truncate">{col.label}</span>
                             <button
                               className={`p-1 rounded hover:bg-gray-200 ${
-                                filters[col.key]?.value ? "text-blue-600" : "text-gray-600"
+                                filters[col.key]?.value
+                                  ? "text-blue-600"
+                                  : "text-gray-600"
                               }`}
                               title="Filter"
                               onClick={() =>
-                                setOpenFilterFor((p) => (p === col.key ? null : col.key))
+                                setOpenFilterFor((p) =>
+                                  p === col.key ? null : col.key
+                                )
                               }
-                              type="button"
-                            >
-                              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                              type="button">
+                              <svg
+                                className="w-4 h-4"
+                                viewBox="0 0 24 24"
+                                fill="currentColor">
                                 <path d="M3 5h18l-7 8v6l-4 2v-8L3 5z" />
                               </svg>
                             </button>
@@ -343,8 +422,11 @@ export default function UttakPage() {
                                 <select
                                   className="w-40 border border-gray-300 rounded px-2 py-1 text-sm"
                                   value={filters[col.key]?.op || "contains"}
-                                  onChange={(e) => setFilter(col.key, { op: e.target.value as Op })}
-                                >
+                                  onChange={(e) =>
+                                    setFilter(col.key, {
+                                      op: e.target.value as Op,
+                                    })
+                                  }>
                                   {OPS.map((o) => (
                                     <option key={o.value} value={o.value}>
                                       {o.label}
@@ -355,8 +437,7 @@ export default function UttakPage() {
                                   className="ml-auto text-gray-500 hover:text-gray-700"
                                   onClick={() => setOpenFilterFor(null)}
                                   title="Lukk"
-                                  type="button"
-                                >
+                                  type="button">
                                   ✕
                                 </button>
                               </div>
@@ -364,7 +445,9 @@ export default function UttakPage() {
                                 className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
                                 placeholder="Verdi..."
                                 value={filters[col.key]?.value || ""}
-                                onChange={(e) => setFilter(col.key, { value: e.target.value })}
+                                onChange={(e) =>
+                                  setFilter(col.key, { value: e.target.value })
+                                }
                               />
                               <div className="flex gap-2 justify-end mt-3">
                                 <button
@@ -373,15 +456,13 @@ export default function UttakPage() {
                                     clearFilter(col.key);
                                     setOpenFilterFor(null);
                                   }}
-                                  type="button"
-                                >
+                                  type="button">
                                   Nullstill
                                 </button>
                                 <button
                                   className="px-2 py-1 text-sm rounded bg-purple-600 text-white hover:bg-purple-700"
                                   onClick={() => setOpenFilterFor(null)}
-                                  type="button"
-                                >
+                                  type="button">
                                   Bruk
                                 </button>
                               </div>
@@ -393,15 +474,23 @@ export default function UttakPage() {
                   </thead>
                   <tbody>
                     {filteredRows.map((row, i) => (
-                      <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                      <tr
+                        key={i}
+                        className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
                         {columns.map((col) => {
-                          const v = (row as any)[col.key];
-                          const value =
-                            v === null || v === undefined
-                              ? ""
-                              : typeof v === "object"
-                              ? JSON.stringify(v)
-                              : String(v);
+                          const raw = (row as any)[col.key];
+                          let display: string = "";
+                          if (col.key === "phone") {
+                            display = formatPhone(raw);
+                          } else if (col.key === "birthDate") {
+                            display = formatDate(raw);
+                          } else if (raw === null || raw === undefined) {
+                            display = "";
+                          } else if (typeof raw === "object") {
+                            display = JSON.stringify(raw);
+                          } else {
+                            display = String(raw);
+                          }
                           return (
                             <td
                               key={col.key}
@@ -411,9 +500,8 @@ export default function UttakPage() {
                                   : "px-3 py-2 text-gray-800 align-top whitespace-nowrap border-b max-w-[260px] truncate"
                               }
                               style={col.narrow ? { width: "1%" } : undefined}
-                              title={value}
-                            >
-                              {value}
+                              title={display}>
+                              {display}
                             </td>
                           );
                         })}

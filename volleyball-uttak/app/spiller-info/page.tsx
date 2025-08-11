@@ -1,10 +1,10 @@
 "use client";
 
 import { auth, signOut } from "@/lib/firebase";
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import LoadingSpinner from "../components/LoadingSpinner";
-import Image from "next/image";
 
 // Simple filter operators similar to Excel
 const OPS = [
