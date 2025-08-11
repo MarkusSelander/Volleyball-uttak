@@ -6,10 +6,10 @@ import {
   onAuthStateChanged,
   signInWithPopup,
 } from "@/lib/firebase";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import LoadingSpinner from "../components/LoadingSpinner";
-import Link from "next/link";
 
 export default function LoginPage() {
   const router = useRouter();
