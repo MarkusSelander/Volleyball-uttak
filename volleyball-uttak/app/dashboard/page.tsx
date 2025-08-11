@@ -94,6 +94,11 @@ export default function Dashboard() {
   const [dataMessage, setDataMessage] = useState<string>("");
   const [totalRegistrations, setTotalRegistrations] = useState<number>(0);
   const [searchTerm, setSearchTerm] = useState<string>("");
+  const [filters, setFilters] = useState({
+    gender: "all", // "all", "male", "female"
+    isStudent: "all", // "all", "yes", "no"
+    previousTeam: "all", // "all", "yes", "no"
+  });
   const [notification, setNotification] = useState<{
     message: string;
     type: "success" | "error" | "info" | "warning";
@@ -148,6 +153,58 @@ export default function Dashboard() {
 
     return nameMatch || rowMatch;
   });
+
+  // Filterfunksjon som også tar hensyn til søketerm
+  const getFilteredPlayers = (playerList: Player[]) => {
+    return playerList.filter((player) => {
+      // Søketerm filter
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase();
+        const nameMatch = player.name.toLowerCase().includes(searchLower);
+        const rowMatch =
+          player.rowNumber?.toString().includes(searchTerm) || false;
+        if (!nameMatch && !rowMatch) return false;
+      }
+
+      // Gender filter
+      if (filters.gender !== "all") {
+        if (
+          filters.gender === "male" &&
+          player.gender?.toLowerCase() !== "mann"
+        )
+          return false;
+        if (
+          filters.gender === "female" &&
+          player.gender?.toLowerCase() !== "kvinne"
+        )
+          return false;
+      }
+
+      // Student filter
+      if (filters.isStudent !== "all") {
+        if (
+          filters.isStudent === "yes" &&
+          player.isStudent?.toLowerCase() !== "ja"
+        )
+          return false;
+        if (
+          filters.isStudent === "no" &&
+          player.isStudent?.toLowerCase() !== "nei"
+        )
+          return false;
+      }
+
+      // Previous team filter (check if they played for NTNUI before)
+      if (filters.previousTeam !== "all") {
+        const playedBefore =
+          player.previousTeam?.toLowerCase().includes("ntnui") || false;
+        if (filters.previousTeam === "yes" && !playedBefore) return false;
+        if (filters.previousTeam === "no" && playedBefore) return false;
+      }
+
+      return true;
+    });
+  };
 
   // Map for quick lookup of row numbers by player name
   const nameToRow = useMemo(() => {
@@ -359,7 +416,7 @@ export default function Dashboard() {
   };
 
   // Beregn tilgjengelige spillere (spillere som ikke er valgt til noen posisjon eller potensielle)
-  const available = filteredPlayers.filter(
+  const available = getFilteredPlayers(players).filter(
     (p) =>
       !POSITIONS.some((pos) => selection[pos].includes(p.name)) &&
       !potentialPlayers.includes(p.name)
@@ -896,6 +953,90 @@ export default function Dashboard() {
             />
           </div>
 
+          {/* Filters */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
+            <div className="flex flex-wrap items-center gap-4">
+              <h3 className="font-medium text-gray-800 dark:text-gray-200 mr-2">
+                Filtrer spillere:
+              </h3>
+
+              <div className="flex items-center gap-2">
+                <label
+                  htmlFor="gender-filter"
+                  className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Kjønn:
+                </label>
+                <select
+                  id="gender-filter"
+                  value={filters.gender}
+                  onChange={(e) =>
+                    setFilters((prev) => ({ ...prev, gender: e.target.value }))
+                  }
+                  className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                  <option value="all">Alle</option>
+                  <option value="male">Menn</option>
+                  <option value="female">Kvinner</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <label
+                  htmlFor="student-filter"
+                  className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Student:
+                </label>
+                <select
+                  id="student-filter"
+                  value={filters.isStudent}
+                  onChange={(e) =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      isStudent: e.target.value,
+                    }))
+                  }
+                  className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                  <option value="all">Alle</option>
+                  <option value="yes">Ja</option>
+                  <option value="no">Nei</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <label
+                  htmlFor="previous-team-filter"
+                  className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Spilte i NTNUI i fjor:
+                </label>
+                <select
+                  id="previous-team-filter"
+                  value={filters.previousTeam}
+                  onChange={(e) =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      previousTeam: e.target.value,
+                    }))
+                  }
+                  className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                  <option value="all">Alle</option>
+                  <option value="yes">Ja</option>
+                  <option value="no">Nei</option>
+                </select>
+              </div>
+
+              <button
+                onClick={() =>
+                  setFilters({
+                    gender: "all",
+                    isStudent: "all",
+                    previousTeam: "all",
+                  })
+                }
+                className="px-3 py-1 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                Nullstill
+              </button>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:[grid-template-columns:repeat(14,minmax(0,1fr))] gap-6">
             {/* Tilgjengelige spillere */}
             <div className="bg-white rounded-xl shadow-sm overflow-hidden animate-fade-in md:order-1 md:col-span-1 lg:col-span-5">
@@ -931,8 +1072,8 @@ export default function Dashboard() {
                   </div>
                   {searchTerm && (
                     <p className="text-sm text-gray-600 mt-2">
-                      Viser {available.length} av {filteredPlayers.length}{" "}
-                      spillere
+                      Viser {available.length} av{" "}
+                      {getFilteredPlayers(players).length} spillere
                     </p>
                   )}
                 </div>
@@ -940,7 +1081,7 @@ export default function Dashboard() {
                 {/* Scrollable list */}
                 <AvailableDropZone>
                   <div
-                    className="mt-2 max-h-[72vh] overflow-y-auto overflow-x-hidden pr-2"
+                    className="mt-2 max-h-[50vh] overflow-y-auto overflow-x-hidden pr-2"
                     style={{ WebkitOverflowScrolling: "touch" }}>
                     {available.length === 0 ? (
                       <div className="text-center py-8 text-gray-500">
@@ -1112,11 +1253,13 @@ export default function Dashboard() {
             <div className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                 {POSITIONS.map((position) => {
-                  const positionPlayers = players.filter((player) => {
-                    if (!player.desiredPositions) return false;
-                    const mapped = mapPositions(player.desiredPositions);
-                    return mapped.includes(position);
-                  });
+                  const positionPlayers = getFilteredPlayers(players).filter(
+                    (player) => {
+                      if (!player.desiredPositions) return false;
+                      const mapped = mapPositions(player.desiredPositions);
+                      return mapped.includes(position);
+                    }
+                  );
 
                   return (
                     <div key={position} className="space-y-3">
@@ -1152,19 +1295,23 @@ export default function Dashboard() {
                             let statusIcon = "";
 
                             if (isInTeam) {
-                              statusColor = "bg-green-100 text-green-800 border-green-200";
+                              statusColor =
+                                "bg-green-100 text-green-800 border-green-200";
                               statusText = "I lag";
                               statusIcon = "✅";
                             } else if (isPotential) {
-                              statusColor = "bg-orange-100 text-orange-800 border-orange-200";
+                              statusColor =
+                                "bg-orange-100 text-orange-800 border-orange-200";
                               statusText = "Potensiell";
                               statusIcon = "⭐";
                             } else if (isAvailable) {
-                              statusColor = "bg-blue-100 text-blue-800 border-blue-200";
+                              statusColor =
+                                "bg-blue-100 text-blue-800 border-blue-200";
                               statusText = "Tilgjengelig";
                               statusIcon = "👤";
                             } else {
-                              statusColor = "bg-gray-100 text-gray-600 border-gray-200";
+                              statusColor =
+                                "bg-gray-100 text-gray-600 border-gray-200";
                               statusText = "Ukjent";
                               statusIcon = "❓";
                             }
