@@ -41,7 +41,9 @@ function PlayerCard({
     <div
       ref={setNodeRef}
       className={`flex items-center gap-3 p-3 md:p-3 bg-gray-50 rounded-lg hover-lift animate-slide-in touch-none ${
-        isDragging ? "opacity-50 scale-105 shadow-lg z-50" : ""
+        isDragging
+          ? "opacity-70 shadow-xl z-50 bg-white border-2 border-blue-300"
+          : ""
       }`}
       style={{
         animationDelay: `${index * 0.1}s`,

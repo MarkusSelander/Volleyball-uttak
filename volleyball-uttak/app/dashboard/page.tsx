@@ -1089,10 +1089,7 @@ export default function Dashboard() {
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       sensors={sensors}>
-      <div
-        className="min-h-screen bg-gray-50"
-        data-dnd-context="true"
-        data-dragging={isDragging}>
+      <div className="min-h-screen bg-gray-50" data-dnd-context="true">
         {/* Header */}
         <NavHeader
           title="NTNUI Volleyball Uttak"

@@ -236,10 +236,9 @@ html {
   user-select: none;
 }
 
-/* Enhanced feedback for dragging state */
-[data-dragging="true"] {
-  opacity: 0.6;
-  transform: rotate(2deg) scale(1.05);
+/* Enhanced feedback for dragging state - Only apply to draggable items, not the whole context */
+[data-dragging="true"] .dragging-item {
+  opacity: 0.8;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
   z-index: 1000;
   transition: none; /* Disable transitions during drag for better performance */
@@ -249,6 +248,5 @@ html {
 [data-drop-target="true"] {
   background: rgba(59, 130, 246, 0.1);
   border: 2px dashed #3b82f6;
-  transform: scale(1.02);
   transition: all 0.2s ease;
 }

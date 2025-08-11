@@ -40,10 +40,8 @@ export default function PositionSection({
   return (
     <div
       ref={setDroppableRef}
-      className={`border-l-4 pl-4 py-2 transition-all duration-300 min-h-[80px] ${
-        isOver
-          ? "border-blue-400 bg-blue-50 transform scale-102 shadow-md"
-          : "border-gray-200"
+      className={`border-l-4 pl-4 py-2 transition-all duration-200 min-h-[80px] ${
+        isOver ? "border-blue-400 bg-blue-50/50" : "border-gray-200"
       }`}
       data-drop-target={isOver}>
       <h3 className="font-semibold text-base mb-3 flex items-center gap-2">
@@ -137,7 +135,9 @@ function DraggablePlayer({
     <div
       ref={setNodeRef}
       className={`flex items-center justify-between p-3 md:p-3 bg-gradient-to-r from-gray-50 to-white border border-gray-200 rounded-lg animate-slide-in shadow-sm hover:shadow-md transition-all duration-200 touch-none ${
-        isDragging ? "opacity-50 scale-105 shadow-lg z-50" : ""
+        isDragging
+          ? "opacity-70 shadow-xl z-50 bg-white border-2 border-blue-300"
+          : ""
       }`}
       style={{
         animationDelay: `${index * 0.1}s`,
