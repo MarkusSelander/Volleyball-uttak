@@ -31,6 +31,7 @@ interface Player {
   phone?: number;
   gender?: string;
   birthDate?: string;
+  year?: string; // Birth year
   previousPositions?: string;
   desiredPositions?: string;
   desiredLevel?: string;
@@ -39,6 +40,7 @@ interface Player {
   isStudent?: string;
   level?: string;
   attendance?: string;
+  availability?: string; // Player availability level
   registrationNumber?: string; // Registreringsnummer fra spreadsheet
   rowNumber?: number; // Radnummer fra spreadsheet (fallback)
 }
@@ -133,6 +135,10 @@ export default function Dashboard() {
     isStudent: "all", // "all", "yes", "no"
     previousTeam: "all", // "all", "yes", "no"
     desiredLevel: "all", // "all", "1", "2", "3", etc.
+    desiredPosition: "all", // "all", "Midt", "Dia", "Legger", "Libero", "Kant"
+    experience: "all", // "all", "beginner", "intermediate", "advanced"
+    ageGroup: "all", // "all", "under20", "20-25", "over25"
+    availability: "all", // "all", "available", "selected", "potential"
   });
   const [notification, setNotification] = useState<{
     message: string;
@@ -275,6 +281,97 @@ export default function Dashboard() {
             return false;
         }
 
+        // Desired position filter
+        if (filters.desiredPosition !== "all") {
+          const positionsLower = player.desiredPositions?.toLowerCase() || "";
+          const positionLower = filters.desiredPosition.toLowerCase();
+          
+          // Check if the desired position is mentioned in the player's preferred positions
+          if (!positionsLower.includes(positionLower)) return false;
+        }
+
+        // Experience filter
+        if (filters.experience !== "all") {
+          const experienceLower = player.experience?.toLowerCase() || "";
+          
+          if (filters.experience === "beginner") {
+            if (
+              !experienceLower.includes("nybegynner") &&
+              !experienceLower.includes("beginner") &&
+              !experienceLower.includes("new") &&
+              !experienceLower.includes("ingen") &&
+              !experienceLower.includes("none")
+            ) return false;
+          }
+          
+          if (filters.experience === "intermediate") {
+            if (
+              !experienceLower.includes("noe") &&
+              !experienceLower.includes("intermediate") &&
+              !experienceLower.includes("medium") &&
+              !experienceLower.includes("litt") &&
+              !experienceLower.includes("some")
+            ) return false;
+          }
+          
+          if (filters.experience === "advanced") {
+            if (
+              !experienceLower.includes("mye") &&
+              !experienceLower.includes("advanced") &&
+              !experienceLower.includes("erfaren") &&
+              !experienceLower.includes("experienced") &&
+              !experienceLower.includes("høy") &&
+              !experienceLower.includes("high")
+            ) return false;
+          }
+        }
+
+        // Age group filter (approximate based on year of birth)
+        if (filters.ageGroup !== "all" && player.year) {
+          const currentYear = new Date().getFullYear();
+          const age = currentYear - parseInt(player.year.toString());
+          
+          if (filters.ageGroup === "under20" && age >= 20) return false;
+          if (filters.ageGroup === "20-25" && (age < 20 || age > 25)) return false;
+          if (filters.ageGroup === "over25" && age <= 25) return false;
+        }
+
+        // Availability filter
+        if (filters.availability !== "all") {
+          const availabilityLower = player.availability?.toLowerCase() || "";
+          
+          if (filters.availability === "high") {
+            if (
+              !availabilityLower.includes("høy") &&
+              !availabilityLower.includes("high") &&
+              !availabilityLower.includes("mye") &&
+              !availabilityLower.includes("alltid") &&
+              !availabilityLower.includes("always")
+            ) return false;
+          }
+          
+          if (filters.availability === "medium") {
+            if (
+              !availabilityLower.includes("middels") &&
+              !availabilityLower.includes("medium") &&
+              !availabilityLower.includes("noe") &&
+              !availabilityLower.includes("some") &&
+              !availabilityLower.includes("av og til") &&
+              !availabilityLower.includes("sometimes")
+            ) return false;
+          }
+          
+          if (filters.availability === "low") {
+            if (
+              !availabilityLower.includes("lav") &&
+              !availabilityLower.includes("low") &&
+              !availabilityLower.includes("lite") &&
+              !availabilityLower.includes("sjelden") &&
+              !availabilityLower.includes("rarely")
+            ) return false;
+          }
+        }
+
         return true;
       });
     },
@@ -373,15 +470,6 @@ export default function Dashboard() {
           setPlayers(data.detailedPlayers);
           console.log(
             `📦 Loaded ${data.detailedPlayers.length} detailed players from API`
-          );
-
-          // Debug: Check specific players
-          const andersPlayers = data.detailedPlayers.filter((p: Player) =>
-            p.name.toLowerCase().includes("anders")
-          );
-          console.log(
-            "🔍 Anders players found in API:",
-            andersPlayers.map((p: Player) => p.name)
           );
         } else {
           // Fallback til enkel format
@@ -576,24 +664,6 @@ export default function Dashboard() {
       const firstIndex = array.findIndex((p) => p.name === player.name);
       return index === firstIndex;
     });
-
-    // Debug: Check Anders players in available list
-    const andersInAvailable = uniquePlayers.filter((p) =>
-      p.name.toLowerCase().includes("anders")
-    );
-    console.log(
-      "🔍 Anders players in available list:",
-      andersInAvailable.map((p) => p.name)
-    );
-    console.log("📊 Total available players:", uniquePlayers.length);
-    console.log(
-      "📊 Total filtered players before unique filter:",
-      filteredPlayers.length
-    );
-    console.log(
-      "📊 Total players in filteredPlayersComputation:",
-      filteredPlayersComputation.length
-    );
 
     return uniquePlayers;
   }, [
@@ -1362,7 +1432,7 @@ export default function Dashboard() {
                 <label
                   htmlFor="previous-team-filter"
                   className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Spilte i NTNUI i fjor:
+                  NTNUI i fjor:
                 </label>
                 <select
                   id="previous-team-filter"
@@ -1384,7 +1454,7 @@ export default function Dashboard() {
                 <label
                   htmlFor="desired-level-filter"
                   className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Ønsket divisjon:
+                  Divisjon:
                 </label>
                 <select
                   id="desired-level-filter"
@@ -1397,10 +1467,104 @@ export default function Dashboard() {
                   }
                   className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                   <option value="all">Alle</option>
-                  <option value="1">1. divisjon</option>
-                  <option value="2">2. divisjon</option>
-                  <option value="3">3. divisjon</option>
-                  <option value="4">4. divisjon</option>
+                  <option value="1">1. div</option>
+                  <option value="2">2. div</option>
+                  <option value="3">3. div</option>
+                  <option value="4">4. div</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <label
+                  htmlFor="desired-position-filter"
+                  className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Posisjon:
+                </label>
+                <select
+                  id="desired-position-filter"
+                  value={filters.desiredPosition}
+                  onChange={(e) =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      desiredPosition: e.target.value,
+                    }))
+                  }
+                  className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                  <option value="all">Alle</option>
+                  <option value="libero">Libero</option>
+                  <option value="setter">Setter</option>
+                  <option value="outside">Outside</option>
+                  <option value="middle">Middle</option>
+                  <option value="opposite">Opposite</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <label
+                  htmlFor="experience-filter"
+                  className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Erfaring:
+                </label>
+                <select
+                  id="experience-filter"
+                  value={filters.experience}
+                  onChange={(e) =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      experience: e.target.value,
+                    }))
+                  }
+                  className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                  <option value="all">Alle</option>
+                  <option value="beginner">Ny</option>
+                  <option value="intermediate">Noe</option>
+                  <option value="advanced">Mye</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <label
+                  htmlFor="age-group-filter"
+                  className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Alder:
+                </label>
+                <select
+                  id="age-group-filter"
+                  value={filters.ageGroup}
+                  onChange={(e) =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      ageGroup: e.target.value,
+                    }))
+                  }
+                  className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                  <option value="all">Alle</option>
+                  <option value="under20">&lt;20</option>
+                  <option value="20-25">20-25</option>
+                  <option value="over25">&gt;25</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <label
+                  htmlFor="availability-filter"
+                  className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Tilgjengelig:
+                </label>
+                <select
+                  id="availability-filter"
+                  value={filters.availability}
+                  onChange={(e) =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      availability: e.target.value,
+                    }))
+                  }
+                  className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                  <option value="all">Alle</option>
+                  <option value="high">Høy</option>
+                  <option value="medium">Middels</option>
+                  <option value="low">Lav</option>
                 </select>
               </div>
 
@@ -1411,23 +1575,27 @@ export default function Dashboard() {
                     isStudent: "all",
                     previousTeam: "all",
                     desiredLevel: "all",
+                    desiredPosition: "all",
+                    experience: "all",
+                    ageGroup: "all",
+                    availability: "all",
                   })
                 }
                 className="px-3 py-1 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                 Nullstill
               </button>
-
-              {/* Debug info - remove in production */}
-              {players.length > 0 && (
-                <div className="text-xs text-gray-500 dark:text-gray-400 ml-4">
-                  Debug: Første spiller - Kjønn: &ldquo;{players[0]?.gender}
-                  &rdquo;, Student: &ldquo;{players[0]?.isStudent}&rdquo;,
-                  Forrige lag: &ldquo;
-                  {players[0]?.previousTeam}&rdquo;, Ønsket nivå: &ldquo;
-                  {players[0]?.desiredLevel}&rdquo;
-                </div>
-              )}
             </div>
+
+            {/* Debug info - remove in production */}
+            {players.length > 0 && (
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-4">
+                Debug: Første spiller - Kjønn: &ldquo;{players[0]?.gender}
+                &rdquo;, Student: &ldquo;{players[0]?.isStudent}&rdquo;,
+                Forrige lag: &ldquo;
+                {players[0]?.previousTeam}&rdquo;, Ønsket nivå: &ldquo;
+                {players[0]?.desiredLevel}&rdquo;
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:[grid-template-columns:repeat(14,minmax(0,1fr))] gap-6">
