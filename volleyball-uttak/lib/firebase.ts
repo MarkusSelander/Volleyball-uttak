@@ -31,4 +31,4 @@ if (typeof window !== "undefined") {
 
 export { auth, db };
 export const googleProvider = new GoogleAuthProvider();
-export { onAuthStateChanged, signInWithPopup, signOut, onSnapshot };
+export { onAuthStateChanged, onSnapshot, signInWithPopup, signOut };

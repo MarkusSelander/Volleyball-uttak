@@ -11,7 +11,7 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, setDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import LoadingSpinner from "../components/LoadingSpinner";
@@ -101,8 +101,8 @@ export default function Dashboard() {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>("");
   const [isDragging, setIsDragging] = useState<boolean>(false);
-  const [isConnected, setIsConnected] = useState<boolean>(false); // Real-time connection status
   const [isLocalUpdate, setIsLocalUpdate] = useState<boolean>(false); // Track if update is from local action
+  const [skipNextSnapshot, setSkipNextSnapshot] = useState<boolean>(false); // Skip next snapshot after local update
 
   // Configure sensors for better touch support
   const mouseSensor = useSensor(MouseSensor, {
@@ -312,33 +312,42 @@ export default function Dashboard() {
 
       // Set up real-time listener for team data
       const teamRef = doc(db, "teams", user.uid);
-      
+
       // Real-time listener for team selection data
-      const unsubscribeSnapshot = onSnapshot(teamRef, (snapshot) => {
-        if (snapshot.exists()) {
-          const data = snapshot.data();
-          setSelection(data as Selection);
-          
-          // Load potential players if they exist
-          if (data.potentialPlayers) {
-            setPotentialPlayers(data.potentialPlayers);
+      const unsubscribeSnapshot = onSnapshot(
+        teamRef,
+        (snapshot) => {
+          // Skip snapshot update if we just made a local update
+          if (skipNextSnapshot) {
+            console.log("⏭️ Skipping snapshot update after local change");
+            setSkipNextSnapshot(false);
+            return;
           }
-          
-          setIsConnected(true);
-          console.log("🔄 Real-time data synkronisert");
-        } else {
-          // Document doesn't exist, create it with empty data
-          setDoc(teamRef, emptySelection).catch((error) => {
-            console.error("Error creating initial document:", error);
-          });
+
+          if (snapshot.exists()) {
+            const data = snapshot.data();
+            setSelection(data as Selection);
+
+            // Load potential players if they exist
+            if (data.potentialPlayers) {
+              setPotentialPlayers(data.potentialPlayers);
+            }
+
+            console.log("🔄 Real-time data synkroniseret");
+          } else {
+            // Document doesn't exist, create it with empty data
+            setDoc(teamRef, emptySelection).catch((error) => {
+              console.error("Error creating initial document:", error);
+            });
+          }
+          setIsLoading(false);
+        },
+        (error) => {
+          console.error("Error in real-time listener:", error);
+          showNotification("Feil ved synkronisering av data", "error");
+          setIsLoading(false);
         }
-        setIsLoading(false);
-      }, (error) => {
-        console.error("Error in real-time listener:", error);
-        showNotification("Feil ved synkronisering av data", "error");
-        setIsConnected(false);
-        setIsLoading(false);
-      });
+      );
 
       // Store the unsubscribe function to clean up later
       return () => {
@@ -417,7 +426,8 @@ export default function Dashboard() {
 
   const updateSelection = async (pos: Position, player: Player) => {
     setIsLocalUpdate(true); // Mark as local update
-    
+    setSkipNextSnapshot(true); // Skip next real-time update
+
     // Optimistic update - update UI immediately
     const newSel: Selection = { ...selection };
 
@@ -441,11 +451,13 @@ export default function Dashboard() {
       setDoc(doc(db, "teams", auth.currentUser.uid), {
         ...newSel,
         potentialPlayers: newPotentialPlayers,
-      }).catch((error) => {
-        console.error("Background Firebase save failed:", error);
-      }).finally(() => {
-        setIsLocalUpdate(false); // Reset local update flag
-      });
+      })
+        .catch((error) => {
+          console.error("Background Firebase save failed:", error);
+        })
+        .finally(() => {
+          setIsLocalUpdate(false); // Reset local update flag
+        });
     }
 
     showNotification(`${player.name} lagt til som ${pos}`, "success");
@@ -453,7 +465,8 @@ export default function Dashboard() {
 
   const removePlayer = async (pos: Position, playerName: string) => {
     setIsLocalUpdate(true); // Mark as local update
-    
+    setSkipNextSnapshot(true); // Skip next real-time update
+
     // Optimistic update - update UI immediately without waiting for Firebase
     const newSel: Selection = { ...selection };
     newSel[pos] = newSel[pos].filter((name) => name !== playerName);
@@ -464,11 +477,13 @@ export default function Dashboard() {
       setDoc(doc(db, "teams", auth.currentUser.uid), {
         ...newSel,
         potentialPlayers,
-      }).catch((error) => {
-        console.error("Background Firebase save failed:", error);
-      }).finally(() => {
-        setIsLocalUpdate(false); // Reset local update flag
-      });
+      })
+        .catch((error) => {
+          console.error("Background Firebase save failed:", error);
+        })
+        .finally(() => {
+          setIsLocalUpdate(false); // Reset local update flag
+        });
     }
 
     showNotification(`${playerName} fjernet fra ${pos}`, "info");
@@ -887,17 +902,93 @@ export default function Dashboard() {
       const playerName = parts.slice(2).join("-");
 
       if (overId === "potential-drop") {
-        // Dra til potensielle (auto-gruppe)
-        removePlayer(fromPosition, playerName);
-        upsertToGroup(playerName, "Ukjent");
+        // Dra til potensielle (auto-gruppe) - håndter begge operasjoner sammen
+        setSkipNextSnapshot(true); // Skip next real-time update
+
+        const newSel: Selection = { ...selection };
+        newSel[fromPosition] = newSel[fromPosition].filter(
+          (name) => name !== playerName
+        );
+        setSelection(newSel);
+
+        // Legg til i potensielle grupper
+        setPotentialGroups((prev) => {
+          const next: PotentialGroups = {
+            Midt: prev.Midt.filter((n) => n !== playerName),
+            Dia: prev.Dia.filter((n) => n !== playerName),
+            Legger: prev.Legger.filter((n) => n !== playerName),
+            Libero: prev.Libero.filter((n) => n !== playerName),
+            Kant: prev.Kant.filter((n) => n !== playerName),
+            Ukjent: prev.Ukjent.filter((n) => n !== playerName),
+          };
+          next["Ukjent"] = [...next["Ukjent"], playerName];
+          const flat = flattenGroups(next);
+          setPotentialPlayers(flat);
+
+          // Synkroniser til Firebase med begge endringene
+          if (auth.currentUser) {
+            setDoc(doc(db, "teams", auth.currentUser.uid), {
+              ...newSel,
+              potentialPlayers: flat,
+            }).catch((error) => {
+              console.error("Firebase save failed:", error);
+            });
+          }
+
+          return next;
+        });
+
+        showNotification(
+          `${playerName} flyttet til potensielle spillere`,
+          "info"
+        );
       } else if (overId.startsWith("potential-pos-")) {
-        // Dra til bestemt potensiell posisjon
+        // Dra til bestemt potensiell posisjon - håndter begge operasjoner sammen
+        setSkipNextSnapshot(true); // Skip next real-time update
+
         const posStr = overId.replace("potential-pos-", "");
         const target: Position | "Ukjent" = isPosition(posStr)
           ? (posStr as Position)
           : "Ukjent";
-        removePlayer(fromPosition, playerName);
-        upsertToGroup(playerName, target);
+
+        const newSel: Selection = { ...selection };
+        newSel[fromPosition] = newSel[fromPosition].filter(
+          (name) => name !== playerName
+        );
+        setSelection(newSel);
+
+        // Legg til i potensielle grupper
+        setPotentialGroups((prev) => {
+          const next: PotentialGroups = {
+            Midt: prev.Midt.filter((n) => n !== playerName),
+            Dia: prev.Dia.filter((n) => n !== playerName),
+            Legger: prev.Legger.filter((n) => n !== playerName),
+            Libero: prev.Libero.filter((n) => n !== playerName),
+            Kant: prev.Kant.filter((n) => n !== playerName),
+            Ukjent: prev.Ukjent.filter((n) => n !== playerName),
+          };
+          next[target] = [...next[target], playerName];
+          const flat = flattenGroups(next);
+          setPotentialPlayers(flat);
+
+          // Synkroniser til Firebase med begge endringene
+          if (auth.currentUser) {
+            setDoc(doc(db, "teams", auth.currentUser.uid), {
+              ...newSel,
+              potentialPlayers: flat,
+            }).catch((error) => {
+              console.error("Firebase save failed:", error);
+            });
+          }
+
+          return next;
+        });
+
+        const suffix = target !== "Ukjent" ? ` (${target})` : "";
+        showNotification(
+          `${playerName} flyttet til potensielle${suffix}`,
+          "info"
+        );
       } else if (overId.startsWith("position-")) {
         // Dra til annen posisjon i Laguttak
         const toPosition = overId.replace("position-", "") as Position;
@@ -1123,21 +1214,6 @@ export default function Dashboard() {
           title="NTNUI Volleyball Uttak"
           subtitle="Lagadministrasjon"
         />
-
-        {/* Connection Status Indicator */}
-        <div className="fixed top-4 right-4 z-50 flex items-center gap-2 px-3 py-1.5 rounded-full text-sm shadow-md transition-all">
-          {isConnected ? (
-            <div className="flex items-center gap-2 bg-green-100 text-green-800">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span>Live sync</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 bg-yellow-100 text-yellow-800">
-              <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-              <span>Kobler til...</span>
-            </div>
-          )}
-        </div>
 
         <div className="w-full px-2 md:px-4 py-8">
           {/* Statistikk */}
