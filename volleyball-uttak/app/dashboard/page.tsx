@@ -1585,17 +1585,6 @@ export default function Dashboard() {
                 Nullstill
               </button>
             </div>
-
-            {/* Debug info - remove in production */}
-            {players.length > 0 && (
-              <div className="text-xs text-gray-500 dark:text-gray-400 mt-4">
-                Debug: Første spiller - Kjønn: &ldquo;{players[0]?.gender}
-                &rdquo;, Student: &ldquo;{players[0]?.isStudent}&rdquo;,
-                Forrige lag: &ldquo;
-                {players[0]?.previousTeam}&rdquo;, Ønsket nivå: &ldquo;
-                {players[0]?.desiredLevel}&rdquo;
-              </div>
-            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:[grid-template-columns:repeat(14,minmax(0,1fr))] gap-6">
