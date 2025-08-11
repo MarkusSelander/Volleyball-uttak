@@ -13,6 +13,7 @@ interface PositionSectionProps {
   ) => void;
   positions: readonly string[];
   isSaving: boolean;
+  nameToRegistrationNumber: Record<string, string | undefined>;
   nameToRow: Record<string, number | undefined>;
 }
 
@@ -25,6 +26,7 @@ export default function PositionSection({
   onMovePlayer,
   positions,
   isSaving,
+  nameToRegistrationNumber,
   nameToRow,
 }: PositionSectionProps) {
   const { setNodeRef: setDroppableRef, isOver } = useDroppable({
@@ -62,6 +64,7 @@ export default function PositionSection({
               key={name}
               name={name}
               position={position}
+              registrationNumber={nameToRegistrationNumber[name]}
               rowNumber={nameToRow[name]}
               positionIcons={positionIcons}
               positions={positions}
@@ -80,6 +83,7 @@ export default function PositionSection({
 interface DraggablePlayerProps {
   name: string;
   position: string;
+  registrationNumber?: string;
   rowNumber?: number;
   positionIcons: Record<string, string>;
   positions: readonly string[];
@@ -96,6 +100,7 @@ interface DraggablePlayerProps {
 function DraggablePlayer({
   name,
   position,
+  registrationNumber,
   rowNumber,
   positionIcons,
   positions,
@@ -144,11 +149,15 @@ function DraggablePlayer({
             <path d="M7 4a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 8a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 12a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 16a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2z" />
           </svg>
         </button>
-        {typeof rowNumber === "number" && (
+        {(registrationNumber || rowNumber) && (
           <span
             className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-800 border border-gray-200"
-            title={`Rad ${rowNumber}`}>
-            #{rowNumber}
+            title={
+              registrationNumber
+                ? `Registreringsnummer ${registrationNumber}`
+                : `Rad ${rowNumber}`
+            }>
+            #{registrationNumber || (rowNumber ? rowNumber + 98 : '')}
           </span>
         )}
         <span

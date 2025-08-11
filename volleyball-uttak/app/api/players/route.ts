@@ -39,6 +39,7 @@ interface PlayerData {
   isStudent?: string;
   level?: string;
   attendance?: string;
+  registrationNumber?: string; // Kolonne T - Registreringsnummer
   rowNumber?: number; // Radnummer i arket (1-basert)
 }
 
@@ -48,7 +49,7 @@ export async function GET() {
     const EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
     const RAW_KEY = process.env.GOOGLE_PRIVATE_KEY;
     const SHEET_ID = process.env.GOOGLE_SHEET_ID;
-    const RANGE = process.env.GOOGLE_SHEET_RANGE || "'Skjemasvar 1'!A:P"; // Leser til P fordi du bruker index 15
+    const RANGE = process.env.GOOGLE_SHEET_RANGE || "'Skjemasvar 1'!A:T"; // Leser til T for registreringsnummer
 
     if (!EMAIL || !RAW_KEY || !SHEET_ID) {
       console.warn("[/api/players] Mangler ENV, bruker fallback.");
@@ -103,7 +104,7 @@ export async function GET() {
       .filter((row) => get(row, 2) !== "")
       .map((row, i) => ({
         // Kolonne-mapping basert på beskrivelsen din:
-        // A=0, B=1, C=2, D=3, E=4, F=5, G=6, H=7, I=8, J=9, K=10, L=11, M=12, N=13, O=14, P=15
+        // A=0, B=1, C=2, D=3, E=4, F=5, G=6, H=7, I=8, J=9, K=10, L=11, M=12, N=13, O=14, P=15, Q=16, R=17, S=18, T=19
         name: get(row, 2), // C - Navn
         birthDate: get(row, 3), // D - Fødselsdato
         gender: get(row, 4), // E - Kjønn
@@ -114,9 +115,9 @@ export async function GET() {
         desiredPositions: get(row, 10), // K - Ønskede posisjoner
         desiredLevel: get(row, 11), // L - Ønsket nivå
         experience: get(row, 12), // M - Erfaring
-        email: get(row, 15), // P - E-post (oppdatert)
+        email: get(row, 15), // P - E-post
         level: get(row, 14), // O - Høyeste nivå påmeldt
-        // attendance: get(row, 15), // P - Oppmøte (ikke i bruk lenger)
+        registrationNumber: get(row, 19), // T - Registreringsnummer
         rowNumber: i + 2, // +1 for header, +1 for 1-basert radindeks
       }));
 

@@ -36,7 +36,8 @@ interface Player {
   isStudent?: string;
   level?: string;
   attendance?: string;
-  rowNumber?: number; // Radnummer fra spreadsheet
+  registrationNumber?: string; // Registreringsnummer fra spreadsheet
+  rowNumber?: number; // Radnummer fra spreadsheet (fallback)
 }
 
 type Selection = Record<Position, string[]>;
@@ -163,7 +164,9 @@ export default function Dashboard() {
           const searchLower = debouncedSearchTerm.toLowerCase();
           const nameMatch = player.name.toLowerCase().includes(searchLower);
           const rowMatch =
-            player.rowNumber?.toString().includes(debouncedSearchTerm) || false;
+            player.registrationNumber
+              ?.toString()
+              .includes(debouncedSearchTerm) || false;
           if (!nameMatch && !rowMatch) return false;
         }
 
@@ -255,10 +258,25 @@ export default function Dashboard() {
     [debouncedSearchTerm, filters]
   );
 
-  // Map for quick lookup of row numbers by player name
+  // Map for quick lookup of registration numbers by player name
+  const nameToRegistrationNumber = useMemo(() => {
+    const m: Record<string, string | undefined> = {};
+    for (const p of players) {
+      if (p.registrationNumber) {
+        m[p.name] = p.registrationNumber;
+      }
+    }
+    return m;
+  }, [players]);
+
+  // Map for quick lookup of row numbers by player name (fallback)
   const nameToRow = useMemo(() => {
     const m: Record<string, number | undefined> = {};
-    for (const p of players) m[p.name] = p.rowNumber;
+    for (const p of players) {
+      if (p.rowNumber) {
+        m[p.name] = p.rowNumber;
+      }
+    }
     return m;
   }, [players]);
 
@@ -473,10 +491,14 @@ export default function Dashboard() {
           !potentialPlayers.includes(p.name)
       )
       .sort((a, b) => {
-        // Sorter etter radnummer (laveste først)
-        const rowA = a.rowNumber || Infinity;
-        const rowB = b.rowNumber || Infinity;
-        return rowA - rowB;
+        // Sorter etter registreringsnummer (laveste først)
+        const regA = a.registrationNumber
+          ? parseInt(a.registrationNumber) || Infinity
+          : Infinity;
+        const regB = b.registrationNumber
+          ? parseInt(b.registrationNumber) || Infinity
+          : Infinity;
+        return regA - regB;
       });
 
     // Fjern duplikater basert på navn (behold første/laveste radnummer)
@@ -526,9 +548,13 @@ export default function Dashboard() {
       const position = pos as Position | "Ukjent";
       positionMap[position] = positionMap[position]
         .sort((a, b) => {
-          const rowA = a.rowNumber || Infinity;
-          const rowB = b.rowNumber || Infinity;
-          return rowA - rowB;
+          const regA = a.registrationNumber
+            ? parseInt(a.registrationNumber) || Infinity
+            : Infinity;
+          const regB = b.registrationNumber
+            ? parseInt(b.registrationNumber) || Infinity
+            : Infinity;
+          return regA - regB;
         })
         .filter((player, index, array) => {
           const firstIndex = array.findIndex((p) => p.name === player.name);
@@ -937,6 +963,7 @@ export default function Dashboard() {
   // Draggable komponent for potensielle spillere
   const DraggablePotentialPlayer = ({
     playerName,
+    registrationNumber,
     rowNumber,
     positionIcons,
     POSITIONS,
@@ -946,6 +973,7 @@ export default function Dashboard() {
     index,
   }: {
     playerName: string;
+    registrationNumber?: string;
     rowNumber?: number;
     positionIcons: Record<string, string>;
     POSITIONS: readonly string[];
@@ -989,11 +1017,15 @@ export default function Dashboard() {
             </svg>
           </button>
 
-          {typeof rowNumber === "number" && (
+          {(registrationNumber || rowNumber) && (
             <span
               className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-800 border border-gray-200 shrink-0"
-              title={`Rad ${rowNumber}`}>
-              #{rowNumber}
+              title={
+                registrationNumber
+                  ? `Registreringsnummer ${registrationNumber}`
+                  : `Rad ${rowNumber}`
+              }>
+              #{registrationNumber || (rowNumber ? rowNumber + 98 : '')}
             </span>
           )}
 
@@ -1304,7 +1336,7 @@ export default function Dashboard() {
                           .map((player, index) => (
                             <PlayerCard
                               key={`${player.name}-${
-                                player.rowNumber || index
+                                player.registrationNumber || index
                               }`}
                               player={player}
                               positions={POSITIONS}
@@ -1377,9 +1409,14 @@ export default function Dashboard() {
                                   (playerName, index) => (
                                     <DraggablePotentialPlayer
                                       key={`${playerName}-${
-                                        nameToRow[playerName] || index
+                                        nameToRegistrationNumber[playerName] ||
+                                        nameToRow[playerName] ||
+                                        index
                                       }-potential-${pos}`}
                                       playerName={playerName}
+                                      registrationNumber={
+                                        nameToRegistrationNumber[playerName]
+                                      }
                                       rowNumber={nameToRow[playerName]}
                                       positionIcons={positionIcons}
                                       POSITIONS={POSITIONS}
@@ -1406,9 +1443,14 @@ export default function Dashboard() {
                                 (playerName, index) => (
                                   <DraggablePotentialPlayer
                                     key={`${playerName}-${
-                                      nameToRow[playerName] || index
+                                      nameToRegistrationNumber[playerName] ||
+                                      nameToRow[playerName] ||
+                                      index
                                     }-potential-ukjent`}
                                     playerName={playerName}
+                                    registrationNumber={
+                                      nameToRegistrationNumber[playerName]
+                                    }
                                     rowNumber={nameToRow[playerName]}
                                     positionIcons={positionIcons}
                                     POSITIONS={POSITIONS}
@@ -1460,6 +1502,7 @@ export default function Dashboard() {
                       }
                       positions={POSITIONS}
                       isSaving={isSaving}
+                      nameToRegistrationNumber={nameToRegistrationNumber}
                       nameToRow={nameToRow}
                     />
                   ))}
@@ -1542,15 +1585,22 @@ export default function Dashboard() {
                             return (
                               <div
                                 key={`${player.name}-${
-                                  player.rowNumber || "norow"
+                                  player.registrationNumber || "noregnum"
                                 }-${position}`}
                                 className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                                 <div className="flex items-center gap-2 min-w-0">
-                                  {typeof player.rowNumber === "number" && (
+                                  {(player.registrationNumber ||
+                                    player.rowNumber) && (
                                     <span
                                       className="text-[11px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 shrink-0"
-                                      title={`Rad ${player.rowNumber}`}>
-                                      #{player.rowNumber}
+                                      title={
+                                        player.registrationNumber
+                                          ? `Registreringsnummer ${player.registrationNumber}`
+                                          : `Rad ${player.rowNumber}`
+                                      }>
+                                      #
+                                      {player.registrationNumber ||
+                                        (player.rowNumber ? player.rowNumber + 98 : '')}
                                     </span>
                                   )}
                                   <span
