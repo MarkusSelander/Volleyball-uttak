@@ -114,9 +114,9 @@ export async function GET() {
         desiredPositions: get(row, 10), // K - Ønskede posisjoner
         desiredLevel: get(row, 11), // L - Ønsket nivå
         experience: get(row, 12), // M - Erfaring
-        email: get(row, 13), // N - E-post
+        email: get(row, 15), // P - E-post (oppdatert)
         level: get(row, 14), // O - Høyeste nivå påmeldt
-        attendance: get(row, 15), // P - Oppmøte
+        // attendance: get(row, 15), // P - Oppmøte (ikke i bruk lenger)
         rowNumber: i + 2, // +1 for header, +1 for 1-basert radindeks
       }));
 

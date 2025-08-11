@@ -133,6 +133,11 @@ export default function Dashboard() {
     return positions;
   };
 
+  // Type guard for Position
+  const isPosition = (x: string): x is Position => {
+    return (POSITIONS as readonly string[]).includes(x as Position);
+  };
+
   // Søkefunksjon
   const filteredPlayers = players.filter((player) => {
     if (!searchTerm) return true;
@@ -313,33 +318,189 @@ export default function Dashboard() {
     }
   };
 
-  const addToPotential = async (player: Player) => {
+  // Flytt en spiller mellom posisjoner i Laguttak
+  const movePlayer = async (
+    fromPos: Position,
+    playerName: string,
+    toPos: Position
+  ) => {
+    if (fromPos === toPos) return;
     setIsSaving(true);
     try {
-      const newPotentialPlayers = [...potentialPlayers, player.name];
+      const newSel: Selection = { ...selection };
+      newSel[fromPos] = newSel[fromPos].filter((n) => n !== playerName);
+      if (!newSel[toPos].includes(playerName)) {
+        newSel[toPos] = [...newSel[toPos], playerName];
+      }
 
-      // Oppdater state først for umiddelbar UI oppdatering
-      setPotentialPlayers(newPotentialPlayers);
+      setSelection(newSel);
 
-      // Prøv å lagre til Firebase, men ikke la det stoppe UI oppdateringen
       if (auth.currentUser) {
         try {
           await setDoc(doc(db, "teams", auth.currentUser.uid), {
-            ...selection,
-            potentialPlayers: newPotentialPlayers,
+            ...newSel,
+            potentialPlayers, // uendret
           });
-          showNotification(
-            `${player.name} lagt til i potensielle spillere`,
-            "success"
-          );
         } catch (firebaseError) {
           console.error("Firebase error, but UI updated:", firebaseError);
-          showNotification(
-            `${player.name} lagt til i potensielle spillere (offline)`,
-            "info"
-          );
         }
       }
+
+      showNotification(
+        `${playerName} flyttet fra ${fromPos} til ${toPos}`,
+        "success"
+      );
+    } catch (error) {
+      console.error("Error moving player:", error);
+      showNotification("Feil ved flytting av spiller", "error");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Beregn tilgjengelige spillere (spillere som ikke er valgt til noen posisjon eller potensielle)
+  const available = filteredPlayers.filter(
+    (p) =>
+      !POSITIONS.some((pos) => selection[pos].includes(p.name)) &&
+      !potentialPlayers.includes(p.name)
+  );
+
+  // Stateful grupper for potensielle spillere (flytting mellom grupper i UI)
+  type PotentialGroups = Record<
+    (typeof POSITIONS)[number] | "Ukjent",
+    string[]
+  >;
+  const [potentialGroups, setPotentialGroups] = useState<PotentialGroups>({
+    Midt: [],
+    Dia: [],
+    Legger: [],
+    Libero: [],
+    Kant: [],
+    Ukjent: [],
+  });
+
+  // Initier grupper én gang når data er lastet
+  useEffect(() => {
+    const allEmpty = Object.values(potentialGroups).every(
+      (arr) => arr.length === 0
+    );
+    if (!allEmpty) return; // allerede initialisert eller bruker har flyttet
+
+    if (players.length === 0) return;
+
+    const groups: PotentialGroups = {
+      Midt: [],
+      Dia: [],
+      Legger: [],
+      Libero: [],
+      Kant: [],
+      Ukjent: [],
+    };
+
+    for (const name of potentialPlayers) {
+      const p = players.find((pp) => pp.name === name);
+      const mapped = p?.desiredPositions
+        ? mapPositions(p.desiredPositions)
+        : [];
+      const primary = (mapped[0] as (typeof POSITIONS)[number]) || undefined;
+      if (primary && groups[primary]) groups[primary].push(name);
+      else groups["Ukjent"].push(name);
+    }
+    setPotentialGroups(groups);
+  }, [players, potentialPlayers]);
+
+  const flattenGroups = (grps: PotentialGroups = potentialGroups) => {
+    const flat = [
+      ...grps.Midt,
+      ...grps.Dia,
+      ...grps.Legger,
+      ...grps.Libero,
+      ...grps.Kant,
+      ...grps.Ukjent,
+    ];
+    return Array.from(new Set(flat));
+  };
+
+  const upsertToGroup = async (
+    name: string,
+    target: (typeof POSITIONS)[number] | "Ukjent"
+  ) => {
+    setPotentialGroups((prev) => {
+      const next: PotentialGroups = {
+        Midt: prev.Midt.filter((n) => n !== name),
+        Dia: prev.Dia.filter((n) => n !== name),
+        Legger: prev.Legger.filter((n) => n !== name),
+        Libero: prev.Libero.filter((n) => n !== name),
+        Kant: prev.Kant.filter((n) => n !== name),
+        Ukjent: prev.Ukjent.filter((n) => n !== name),
+      };
+      next[target] = [...next[target], name];
+      // Sync flat list state for filtering and stats
+      const flat = flattenGroups(next);
+      setPotentialPlayers(flat);
+      // Persist to Firestore (potensielle som flat liste)
+      if (auth.currentUser) {
+        setDoc(doc(db, "teams", auth.currentUser.uid), {
+          ...selection,
+          potentialPlayers: flat,
+        }).catch(() => {});
+      }
+      return next;
+    });
+  };
+
+  const removeFromAllGroups = async (name: string) => {
+    setPotentialGroups((prev) => {
+      const next: PotentialGroups = {
+        Midt: prev.Midt.filter((n) => n !== name),
+        Dia: prev.Dia.filter((n) => n !== name),
+        Legger: prev.Legger.filter((n) => n !== name),
+        Libero: prev.Libero.filter((n) => n !== name),
+        Kant: prev.Kant.filter((n) => n !== name),
+        Ukjent: prev.Ukjent.filter((n) => n !== name),
+      };
+      const flat = flattenGroups(next);
+      setPotentialPlayers(flat);
+      if (auth.currentUser) {
+        setDoc(doc(db, "teams", auth.currentUser.uid), {
+          ...selection,
+          potentialPlayers: flat,
+        }).catch(() => {});
+      }
+      return next;
+    });
+  };
+
+  const totalSelected = POSITIONS.reduce(
+    (sum, pos) => sum + selection[pos].length,
+    0
+  );
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen gradient-accent">
+        <LoadingSpinner size="lg" text="Laster dashboard..." />
+      </div>
+    );
+  }
+
+  const addToPotential = async (player: Player) => {
+    setIsSaving(true);
+    try {
+      // Bestem standardgruppe fra ønsket posisjon
+      const mapped = player.desiredPositions
+        ? mapPositions(player.desiredPositions)
+        : [];
+      const target: Position | "Ukjent" =
+        mapped.length > 0 ? (mapped[0] as Position) : "Ukjent";
+
+      await upsertToGroup(player.name, target);
+
+      const suffix = target !== "Ukjent" ? ` (${target})` : "";
+      showNotification(
+        `${player.name} lagt til i potensielle${suffix}`,
+        "success"
+      );
     } catch (error) {
       console.error("Error adding to potential:", error);
       showNotification("Feil ved lagring av potensielle spiller", "error");
@@ -351,26 +512,7 @@ export default function Dashboard() {
   const removeFromPotential = async (playerName: string) => {
     setIsSaving(true);
     try {
-      const newPotentialPlayers = potentialPlayers.filter(
-        (name) => name !== playerName
-      );
-
-      // Oppdater state først for umiddelbar UI oppdatering
-      setPotentialPlayers(newPotentialPlayers);
-
-      // Prøv å lagre til Firebase, men ikke la det stoppe UI oppdateringen
-      if (auth.currentUser) {
-        try {
-          await setDoc(doc(db, "teams", auth.currentUser.uid), {
-            ...selection,
-            potentialPlayers: newPotentialPlayers,
-          });
-        } catch (firebaseError) {
-          console.error("Firebase error, but UI updated:", firebaseError);
-          // Ikke vis feilmelding til bruker hvis UI fortsatt fungerer
-        }
-      }
-
+      await removeFromAllGroups(playerName);
       showNotification(
         `${playerName} fjernet fra potensielle spillere`,
         "info"
@@ -383,90 +525,26 @@ export default function Dashboard() {
     }
   };
 
-  const movePlayer = async (
-    fromPosition: Position,
-    playerName: string,
-    toPosition: Position
-  ) => {
-    setIsSaving(true);
-    try {
-      const newSel: Selection = { ...selection };
-
-      // Fjern spilleren fra den opprinnelige posisjonen
-      newSel[fromPosition] = newSel[fromPosition].filter(
-        (name) => name !== playerName
-      );
-
-      // Legg til spilleren i den nye posisjonen
-      newSel[toPosition] = [...newSel[toPosition], playerName];
-
-      // Oppdater state først for umiddelbar UI oppdatering
-      setSelection(newSel);
-
-      // Prøv å lagre til Firebase, men ikke la det stoppe UI oppdateringen
-      if (auth.currentUser) {
-        try {
-          await setDoc(doc(db, "teams", auth.currentUser.uid), {
-            ...newSel,
-            potentialPlayers,
-          });
-          showNotification(
-            `${playerName} flyttet fra ${fromPosition} til ${toPosition}`,
-            "success"
-          );
-        } catch (firebaseError) {
-          console.error("Firebase error, but UI updated:", firebaseError);
-          showNotification(
-            `${playerName} flyttet fra ${fromPosition} til ${toPosition} (offline)`,
-            "info"
-          );
-        }
-      }
-    } catch (error) {
-      console.error("Error moving player:", error);
-      showNotification("Feil ved flytting av spiller", "error");
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   const moveFromPotential = async (
     playerName: string,
     toPosition: Position
   ) => {
     setIsSaving(true);
     try {
-      const newPotentialPlayers = potentialPlayers.filter(
-        (name) => name !== playerName
-      );
+      // Fjern fra potensielle grupper og legg i laguttak-posisjon
+      await removeFromAllGroups(playerName);
       const newSel: Selection = { ...selection };
-
-      // Legg til spilleren i den valgte posisjonen
       newSel[toPosition] = [...newSel[toPosition], playerName];
-
-      // Oppdater state først for umiddelbar UI oppdatering
-      setPotentialPlayers(newPotentialPlayers);
       setSelection(newSel);
 
-      // Prøv å lagre til Firebase, men ikke la det stoppe UI oppdateringen
       if (auth.currentUser) {
-        try {
-          await setDoc(doc(db, "teams", auth.currentUser.uid), {
-            ...newSel,
-            potentialPlayers: newPotentialPlayers,
-          });
-          showNotification(
-            `${playerName} flyttet fra potensielle til ${toPosition}`,
-            "success"
-          );
-        } catch (firebaseError) {
-          console.error("Firebase error, but UI updated:", firebaseError);
-          showNotification(
-            `${playerName} flyttet fra potensielle til ${toPosition} (offline)`,
-            "info"
-          );
-        }
+        const flat = flattenGroups();
+        await setDoc(doc(db, "teams", auth.currentUser.uid), {
+          ...newSel,
+          potentialPlayers: flat,
+        });
       }
+      showNotification(`${playerName} lagt til som ${toPosition}`, "success");
     } catch (error) {
       console.error("Error moving from potential:", error);
       showNotification("Feil ved flytting av spiller", "error");
@@ -491,12 +569,19 @@ export default function Dashboard() {
       if (!player) return;
 
       if (overId === "potential-drop") {
-        // Dra til potensielle spillere
+        // Dra til potensielle (auto-gruppe)
         addToPotential(player);
       } else if (overId.startsWith("position-")) {
-        // Dra til spesifikk posisjon
+        // Dra til spesifikk posisjon (Laguttak)
         const position = overId.replace("position-", "") as Position;
         updateSelection(position, player);
+      } else if (overId.startsWith("potential-pos-")) {
+        // Dra til bestemt potensiell posisjon (blir i potensielle)
+        const posStr = overId.replace("potential-pos-", "");
+        const target: Position | "Ukjent" = isPosition(posStr)
+          ? (posStr as Position)
+          : "Ukjent";
+        upsertToGroup(player.name, target);
       }
     }
 
@@ -507,11 +592,19 @@ export default function Dashboard() {
       const playerName = parts.slice(2).join("-");
 
       if (overId === "potential-drop") {
-        // Dra til potensielle spillere
+        // Dra til potensielle (auto-gruppe)
         removePlayer(fromPosition, playerName);
-        addToPotential({ name: playerName });
+        upsertToGroup(playerName, "Ukjent");
+      } else if (overId.startsWith("potential-pos-")) {
+        // Dra til bestemt potensiell posisjon
+        const posStr = overId.replace("potential-pos-", "");
+        const target: Position | "Ukjent" = isPosition(posStr)
+          ? (posStr as Position)
+          : "Ukjent";
+        removePlayer(fromPosition, playerName);
+        upsertToGroup(playerName, target);
       } else if (overId.startsWith("position-")) {
-        // Dra til annen posisjon
+        // Dra til annen posisjon i Laguttak
         const toPosition = overId.replace("position-", "") as Position;
         if (fromPosition !== toPosition) {
           movePlayer(fromPosition, playerName, toPosition);
@@ -524,9 +617,16 @@ export default function Dashboard() {
       const playerName = activeId.replace("potential-", "");
 
       if (overId.startsWith("position-")) {
-        // Dra til spesifikk posisjon
+        // Dra til Laguttak-posisjon
         const position = overId.replace("position-", "") as Position;
         moveFromPotential(playerName, position);
+      } else if (overId.startsWith("potential-pos-")) {
+        // Dra til annen potensiell posisjon (blir i potensielle)
+        const posStr = overId.replace("potential-pos-", "");
+        const target: Position | "Ukjent" = isPosition(posStr)
+          ? (posStr as Position)
+          : "Ukjent";
+        upsertToGroup(playerName, target);
       }
     }
   };
@@ -548,6 +648,43 @@ export default function Dashboard() {
             ? "bg-orange-100 border-2 border-orange-300 border-dashed rounded-lg"
             : ""
         }`}>
+        {children}
+      </div>
+    );
+  };
+
+  // Seksjon for potensiell posisjon (egen droppable per posisjon) – matcher Laguttak-stil
+  const PotentialPositionSection = ({
+    position,
+    count,
+    colorClass,
+    icon,
+    children,
+  }: {
+    position: Position | "Ukjent";
+    count: number;
+    colorClass: string;
+    icon: string;
+    children: React.ReactNode;
+  }) => {
+    const { setNodeRef, isOver } = useDroppable({
+      id: `potential-pos-${position}`,
+      data: { type: "potential-position", position },
+    });
+    return (
+      <div
+        ref={setNodeRef}
+        className={`border-l-4 pl-4 transition-all duration-200 ${
+          isOver ? "border-blue-400 bg-blue-50" : "border-gray-200"
+        }`}>
+        <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+          <span
+            className={`w-6 h-6 ${colorClass} rounded-full flex items-center justify-center text-white text-sm`}>
+            {icon}
+          </span>
+          <span className="text-gray-800">{position}</span>
+          <span className="text-sm text-gray-600">({count})</span>
+        </h3>
         {children}
       </div>
     );
@@ -577,119 +714,83 @@ export default function Dashboard() {
       useDraggable({
         id: `potential-${playerName}`,
         data: {
-          playerName: playerName,
+          name: playerName,
           type: "potential-player",
         },
       });
 
     const style = transform
-      ? {
-          transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-        }
+      ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
       : undefined;
 
     return (
       <div
         ref={setNodeRef}
-        className={`flex items-center justify-between p-3 bg-gradient-to-r from-orange-50 to-yellow-50 border border-orange-200 rounded-lg animate-slide-in shadow-sm hover:shadow-md transition-all duration-200 ${
-          isDragging ? "opacity-50 scale-105 shadow-lg" : ""
+        className={`flex items-center gap-3 p-3 bg-white rounded-lg border border-orange-200 shadow-sm hover:shadow transition-all hover-lift ${
+          isDragging ? "opacity-60 scale-105" : ""
         }`}
-        style={{
-          animationDelay: `${index * 0.1}s`,
-          ...style,
-        }}>
-        <div className="flex items-center gap-2">
-          {/* Drag handle */}
-          <button
-            type="button"
-            className="p-1 md:p-2 text-orange-400 hover:text-orange-600 cursor-grab active:cursor-grabbing"
-            aria-label="Dra for å flytte"
-            title="Dra for å flytte"
-            {...attributes}
-            {...listeners}
-            onClick={(e) => e.stopPropagation()}>
-            <svg
-              className="w-4 h-4 md:w-5 md:h-5"
-              viewBox="0 0 20 20"
-              fill="currentColor">
-              <path d="M7 4a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 8a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 12a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 16a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2z" />
-            </svg>
-          </button>
-          {typeof rowNumber === "number" && (
-            <span
-              className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 border border-orange-200"
-              title={`Rad ${rowNumber}`}>
-              #{rowNumber}
-            </span>
-          )}
-          <span className="font-semibold text-gray-800">{playerName}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <select
-            className="border border-gray-300 rounded-lg px-2.5 md:px-3 py-1.5 md:py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm font-medium text-gray-700 hover:border-blue-400"
-            defaultValue=""
-            onChange={(e) => {
-              if (e.target.value) {
-                moveFromPotential(playerName, e.target.value as Position);
-              }
-            }}
-            disabled={isSaving}
-            onClick={(e) => e.stopPropagation()}>
-            <option value="" disabled>
-              Velg posisjon
+        style={{ animationDelay: `${index * 0.05}s`, ...style }}>
+        {/* Drag handle */}
+        <button
+          type="button"
+          className="p-1.5 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing"
+          aria-label="Dra for å flytte"
+          title="Dra for å flytte"
+          {...attributes}
+          {...listeners}
+          onClick={(e) => e.stopPropagation()}>
+          <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M7 4a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 8a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 12a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 16a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2z" />
+          </svg>
+        </button>
+
+        {/* Row number badge when available */}
+        {typeof rowNumber === "number" && (
+          <span
+            className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 border border-orange-200"
+            title={`Rad ${rowNumber}`}>
+            #{rowNumber}
+          </span>
+        )}
+
+        <span className="flex-1 font-medium text-gray-800">{playerName}</span>
+
+        <select
+          className="border border-gray-300 rounded-lg px-2.5 py-1 bg-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 text-sm font-medium text-gray-700 hover:border-purple-400"
+          defaultValue=""
+          onChange={(e) => {
+            const pos = e.target.value as Position;
+            if (pos) moveFromPotential(playerName, pos);
+          }}
+          disabled={isSaving}
+          onClick={(e) => e.stopPropagation()}>
+          <option value="" disabled>
+            Legg til i lag som...
+          </option>
+          {POSITIONS.map((pos) => (
+            <option key={pos} value={pos}>
+              {positionIcons[pos]} {pos}
             </option>
-            {POSITIONS.map((pos) => (
-              <option key={pos} value={pos}>
-                {positionIcons[pos]} {pos}
-              </option>
-            ))}
-          </select>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              removeFromPotential(playerName);
-            }}
-            disabled={isSaving}
-            className="text-red-500 hover:text-red-700 p-2 rounded-full transition-colors hover:bg-red-50 hover:scale-110"
-            title="Fjern fra potensielle"
-            type="button">
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
-        </div>
+          ))}
+        </select>
+
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            removeFromPotential(playerName);
+          }}
+          disabled={isSaving}
+          className="ml-2 p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg border border-transparent hover:border-red-200 transition-colors"
+          title="Fjern fra potensielle"
+          aria-label="Fjern fra potensielle">
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M9 3v1H4v2h16V4h-5V3H9zm1 6v9h2V9h-2zm-4 0v9h2V9H6zm8 0v9h2V9h-2z" />
+          </svg>
+        </button>
       </div>
     );
   };
-
-  // Beregn tilgjengelige spillere (spillere som ikke er valgt til noen posisjon eller potensielle)
-  const available = filteredPlayers.filter(
-    (p) =>
-      !POSITIONS.some((pos) => selection[pos].includes(p.name)) &&
-      !potentialPlayers.includes(p.name)
-  );
-
-  const totalSelected = POSITIONS.reduce(
-    (sum, pos) => sum + selection[pos].length,
-    0
-  );
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen gradient-accent">
-        <LoadingSpinner size="lg" text="Laster dashboard..." />
-      </div>
-    );
-  }
 
   return (
     <DndContext onDragEnd={handleDragEnd}>
@@ -877,20 +978,63 @@ export default function Dashboard() {
                       </p>
                     </div>
                   ) : (
-                    <div className="space-y-3">
-                      {potentialPlayers.map((playerName, index) => (
-                        <DraggablePotentialPlayer
-                          key={playerName}
-                          playerName={playerName}
-                          rowNumber={nameToRow[playerName]}
-                          positionIcons={positionIcons}
-                          POSITIONS={POSITIONS}
-                          moveFromPotential={moveFromPotential}
-                          removeFromPotential={removeFromPotential}
-                          isSaving={isSaving}
-                          index={index}
-                        />
+                    <div className="space-y-6">
+                      {POSITIONS.map((pos) => (
+                        <PotentialPositionSection
+                          key={pos}
+                          position={pos as Position}
+                          count={potentialGroups[pos].length}
+                          colorClass={positionColors[pos]}
+                          icon={positionIcons[pos]}>
+                          {potentialGroups[pos].length === 0 ? (
+                            <p className="text-gray-500 italic">
+                              Ingen potensielle
+                            </p>
+                          ) : (
+                            <div className="space-y-2">
+                              {potentialGroups[pos].map((playerName, index) => (
+                                <DraggablePotentialPlayer
+                                  key={playerName}
+                                  playerName={playerName}
+                                  rowNumber={nameToRow[playerName]}
+                                  positionIcons={positionIcons}
+                                  POSITIONS={POSITIONS}
+                                  moveFromPotential={moveFromPotential}
+                                  removeFromPotential={removeFromPotential}
+                                  isSaving={isSaving}
+                                  index={index}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </PotentialPositionSection>
                       ))}
+
+                      {potentialGroups["Ukjent"].length > 0 && (
+                        <PotentialPositionSection
+                          position={"Ukjent" as Position}
+                          count={potentialGroups["Ukjent"].length}
+                          colorClass={"bg-gray-400"}
+                          icon={"?"}>
+                          <div className="space-y-2">
+                            {potentialGroups["Ukjent"].map(
+                              (playerName, index) => (
+                                <DraggablePotentialPlayer
+                                  key={playerName}
+                                  playerName={playerName}
+                                  rowNumber={nameToRow[playerName]}
+                                  positionIcons={positionIcons}
+                                  POSITIONS={POSITIONS}
+                                  moveFromPotential={moveFromPotential}
+                                  removeFromPotential={removeFromPotential}
+                                  isSaving={isSaving}
+                                  index={index}
+                                />
+                              )
+                            )}
+                          </div>
+                        </PotentialPositionSection>
+                      )}
                     </div>
                   )}
                 </PotentialDropZone>

@@ -101,6 +101,24 @@ const formatPhone = (v: any) => {
   return (hasPlus ? "+" : "") + digits.replace(/(\d{2})(?=\d)/g, "$1 ").trim();
 };
 
+const formatStudent = (v: any) => {
+  const s = String(v ?? "")
+    .toLowerCase()
+    .trim();
+  if (!s) return ""; // keep empty if no value
+  const tokens = s.split(/[^a-z0-9æøå]+/).filter(Boolean);
+  const hasYes = tokens.some((t) =>
+    ["ja", "yes", "y", "true", "1", "x"].includes(t)
+  );
+  const hasNo = tokens.some((t) =>
+    ["nei", "no", "n", "false", "0"].includes(t)
+  );
+  if (hasYes && !hasNo) return "Ja";
+  if (hasNo && !hasYes) return "Nei";
+  // Ambiguous or unknown -> default to Nei
+  return hasYes ? "Ja" : hasNo ? "Nei" : "Nei";
+};
+
 export default function UttakPage() {
   const router = useRouter();
 
@@ -228,7 +246,7 @@ export default function UttakPage() {
       { key: "birthDate", label: "Fødselsdato" },
       { key: "gender", label: "Kjønn" },
       { key: "phone", label: "Telefon" },
-      { key: "attendance", label: "Mail" },
+      { key: "email", label: "Mail" },
       { key: "isStudent", label: "Student" },
       { key: "selectedPosition", label: "Posisjon" },
     ];
@@ -479,11 +497,40 @@ export default function UttakPage() {
                         className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
                         {columns.map((col) => {
                           const raw = (row as any)[col.key];
+
+                          // Mail (email) clickable mailto link
+                          if (col.key === "email") {
+                            const email = String(raw ?? "").trim();
+                            return (
+                              <td
+                                key={col.key}
+                                className={
+                                  col.narrow
+                                    ? "px-3 py-2 text-gray-800 align-top whitespace-nowrap border-b"
+                                    : "px-3 py-2 text-gray-800 align-top whitespace-nowrap border-b max-w-[260px] truncate"
+                                }
+                                style={col.narrow ? { width: "1%" } : undefined}
+                                title={email}>
+                                {email ? (
+                                  <a
+                                    href={`mailto:${email}`}
+                                    className="text-blue-600 hover:underline">
+                                    {email}
+                                  </a>
+                                ) : (
+                                  ""
+                                )}
+                              </td>
+                            );
+                          }
+
                           let display: string = "";
                           if (col.key === "phone") {
                             display = formatPhone(raw);
                           } else if (col.key === "birthDate") {
                             display = formatDate(raw);
+                          } else if (col.key === "isStudent") {
+                            display = formatStudent(raw);
                           } else if (raw === null || raw === undefined) {
                             display = "";
                           } else if (typeof raw === "object") {
