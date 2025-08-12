@@ -1,7 +1,6 @@
 "use client";
 
 import { DragEndEvent, useDraggable, useDroppable } from "@dnd-kit/core";
-import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import {
   startTransition,
@@ -12,22 +11,13 @@ import {
 } from "react";
 
 // Import components
+import DragDropWrapper from "../components/DragDropWrapper";
 import NavHeader from "../components/NavHeader";
 import Notification from "../components/Notification";
 import PositionSection from "../components/PositionSection";
 import { StatsCardSkeleton } from "../components/SkeletonLoaders";
 import StatsCard from "../components/StatsCard";
 import VirtualizedPlayerList from "../components/VirtualizedPlayerList";
-
-// Dynamic import of DragDropWrapper to prevent SSR hydration issues
-const DragDropWrapper = dynamic(() => import("../components/DragDropWrapper"), {
-  ssr: false,
-  loading: () => (
-    <div className="flex items-center justify-center p-4">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-    </div>
-  ),
-});
 
 // Prevent double initialization in dev mode (React Strict Mode)
 declare global {

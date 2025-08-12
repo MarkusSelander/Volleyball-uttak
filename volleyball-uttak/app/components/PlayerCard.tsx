@@ -31,9 +31,11 @@ const PlayerCard = memo(function PlayerCard({
       },
     });
 
+  // Optimize transform calculation
   const style = transform
     ? {
         transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+        zIndex: isDragging ? 1000 : "auto",
       }
     : undefined;
 
