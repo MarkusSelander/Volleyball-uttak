@@ -1,3 +1,5 @@
+import { memo } from "react";
+
 interface StatsCardProps {
   title: string;
   value: number | string;
@@ -6,7 +8,7 @@ interface StatsCardProps {
   description?: string;
 }
 
-export default function StatsCard({
+const StatsCard = memo(function StatsCard({
   title,
   value,
   icon,
@@ -14,7 +16,7 @@ export default function StatsCard({
   description,
 }: StatsCardProps) {
   return (
-    <div className="bg-white rounded-xl p-4 md:p-5 shadow-sm hover-lift animate-fade-in">
+    <div className="bg-white rounded-xl p-4 md:p-5 shadow-sm hover-lift animate-fade-in min-h-[100px]">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-gray-600 text-[10px] md:text-xs">{title}</p>
@@ -32,4 +34,6 @@ export default function StatsCard({
       </div>
     </div>
   );
-}
+});
+
+export default StatsCard;

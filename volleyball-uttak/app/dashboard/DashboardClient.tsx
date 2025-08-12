@@ -1,32 +1,39 @@
 "use client";
 
-import {
-  DragEndEvent,
-  useDraggable,
-  useDroppable,
-} from "@dnd-kit/core";
+import { DragEndEvent, useDraggable, useDroppable } from "@dnd-kit/core";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  startTransition,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 // Import components
 import NavHeader from "../components/NavHeader";
 import Notification from "../components/Notification";
-import PlayerCard from "../components/PlayerCard";
 import PositionSection from "../components/PositionSection";
+import { StatsCardSkeleton } from "../components/SkeletonLoaders";
 import StatsCard from "../components/StatsCard";
+import VirtualizedPlayerList from "../components/VirtualizedPlayerList";
 
 // Dynamic import of DragDropWrapper to prevent SSR hydration issues
 const DragDropWrapper = dynamic(() => import("../components/DragDropWrapper"), {
   ssr: false,
-  loading: () => <div>Loading drag & drop...</div>,
+  loading: () => (
+    <div className="flex items-center justify-center p-4">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+    </div>
+  ),
 });
 
 // Prevent double initialization in dev mode (React Strict Mode)
-declare global { 
-  interface Window { 
-    __volleyInit?: boolean; 
-  } 
+declare global {
+  interface Window {
+    __volleyInit?: boolean;
+  }
 }
 
 const POSITIONS = ["Midt", "Dia", "Legger", "Libero", "Kant"] as const;
@@ -131,10 +138,12 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
 
   const router = useRouter();
 
-  // Debounce search term for better performance
+  // Debounce search term for better performance with startTransition
   useEffect(() => {
     const timer = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm);
+      startTransition(() => {
+        setDebouncedSearchTerm(searchTerm);
+      });
     }, 300);
 
     return () => clearTimeout(timer);
@@ -181,16 +190,22 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
     []
   );
 
-  const showNotification = (
-    message: string,
-    type: "success" | "error" | "info" | "warning"
-  ) => {
-    setNotification({ message, type, isVisible: true });
-    setTimeout(
-      () => setNotification((prev) => ({ ...prev, isVisible: false })),
-      3000
-    );
-  };
+  const showNotification = useCallback(
+    (message: string, type: "success" | "error" | "info" | "warning") => {
+      // Use startTransition for non-urgent notification updates
+      startTransition(() => {
+        setNotification({ message, type, isVisible: true });
+      });
+
+      // Auto-dismiss after 3 seconds
+      setTimeout(() => {
+        startTransition(() => {
+          setNotification((prev) => ({ ...prev, isVisible: false }));
+        });
+      }, 3000);
+    },
+    []
+  );
 
   // Manual refresh function
   const handleManualRefresh = async () => {
@@ -479,37 +494,39 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
     return getFilteredPlayers(players);
   }, [getFilteredPlayers, players]);
 
-  // Beregn tilgjengelige spillere
+  // Optimized available players computation with better memoization
   const available = useMemo(() => {
-    const filteredPlayers = filteredPlayersComputation
-      .filter((p) => !allUnavailablePlayerNames.includes(p.name))
-      .sort((a, b) => {
-        const regA = a.registrationNumber
-          ? parseInt(a.registrationNumber) || Infinity
-          : a.rowNumber
-          ? a.rowNumber + 98
-          : Infinity;
-        const regB = b.registrationNumber
-          ? parseInt(b.registrationNumber) || Infinity
-          : b.rowNumber
-          ? b.rowNumber + 98
-          : Infinity;
-        return regA - regB;
-      });
+    const filteredPlayers = filteredPlayersComputation.filter(
+      (p) => !allUnavailablePlayerNames.includes(p.name)
+    );
 
-    const uniquePlayers = filteredPlayers.filter((player, index, array) => {
-      const firstIndex = array.findIndex((p) => p.name === player.name);
-      return index === firstIndex;
+    // Pre-sort once and cache the result
+    const sortedPlayers = filteredPlayers.sort((a, b) => {
+      const regA = a.registrationNumber
+        ? parseInt(a.registrationNumber) || Infinity
+        : a.rowNumber
+        ? a.rowNumber + 98
+        : Infinity;
+      const regB = b.registrationNumber
+        ? parseInt(b.registrationNumber) || Infinity
+        : b.rowNumber
+        ? b.rowNumber + 98
+        : Infinity;
+      return regA - regB;
+    });
+
+    // Use Set for O(1) lookup instead of O(n) findIndex
+    const seenNames = new Set<string>();
+    const uniquePlayers = sortedPlayers.filter((player) => {
+      if (seenNames.has(player.name)) {
+        return false;
+      }
+      seenNames.add(player.name);
+      return true;
     });
 
     return uniquePlayers;
-  }, [
-    filteredPlayersComputation,
-    allUnavailablePlayerNames,
-    players,
-    selectedPlayerNames,
-    potentialPlayers,
-  ]);
+  }, [filteredPlayersComputation, allUnavailablePlayerNames]);
 
   // Stateful grupper for potensielle spillere
   type PotentialGroups = Record<
@@ -652,7 +669,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
         next[target] = [...next[target], playerName];
 
         const newPotentialPlayers = flattenGroups(next);
-        
+
         // Batch state updates
         setSelection(newSel);
         setPotentialPlayers(newPotentialPlayers);
@@ -1077,9 +1094,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
   };
 
   return (
-    <DragDropWrapper
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}>
+    <DragDropWrapper onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="min-h-screen bg-gray-50" data-dnd-context="true">
         <NavHeader
           title="NTNUI Volleyball Uttak"
@@ -1091,8 +1106,17 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
         />
 
         <div className="w-full px-2 md:px-4 py-8">
-              {/* Statistikk */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5 mb-4 md:mb-6">
+          {/* Statistikk with fixed height to prevent CLS */}
+          <div className="stats-container grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5 mb-4 md:mb-6">
+            {isLoading ? (
+              <>
+                <StatsCardSkeleton />
+                <StatsCardSkeleton />
+                <StatsCardSkeleton />
+                <StatsCardSkeleton />
+              </>
+            ) : (
+              <>
                 <StatsCard
                   title="Totalt påmeldt"
                   value={totalRegistrations}
@@ -1117,575 +1141,543 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                   icon="⭐"
                   color="bg-orange-100"
                 />
+              </>
+            )}
+          </div>
+
+          {/* Filters - keeping exact same styling */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
+            <div className="flex flex-wrap items-center gap-4">
+              <h3 className="font-medium text-gray-800 dark:text-gray-200 mr-2">
+                Filtrer spillere:
+              </h3>
+
+              <div className="flex items-center gap-2">
+                <label
+                  htmlFor="gender-filter"
+                  className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Kjønn:
+                </label>
+                <select
+                  id="gender-filter"
+                  value={filters.gender}
+                  onChange={(e) =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      gender: e.target.value,
+                    }))
+                  }
+                  className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                  <option value="all">Alle</option>
+                  <option value="male">Menn</option>
+                  <option value="female">Kvinner</option>
+                </select>
               </div>
 
-              {/* Filters - keeping exact same styling */}
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
-                <div className="flex flex-wrap items-center gap-4">
-                  <h3 className="font-medium text-gray-800 dark:text-gray-200 mr-2">
-                    Filtrer spillere:
-                  </h3>
+              <div className="flex items-center gap-2">
+                <label
+                  htmlFor="student-filter"
+                  className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Student:
+                </label>
+                <select
+                  id="student-filter"
+                  value={filters.isStudent}
+                  onChange={(e) =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      isStudent: e.target.value,
+                    }))
+                  }
+                  className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                  <option value="all">Alle</option>
+                  <option value="yes">Ja</option>
+                  <option value="no">Nei</option>
+                </select>
+              </div>
 
-                  <div className="flex items-center gap-2">
-                    <label
-                      htmlFor="gender-filter"
-                      className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Kjønn:
-                    </label>
-                    <select
-                      id="gender-filter"
-                      value={filters.gender}
-                      onChange={(e) =>
-                        setFilters((prev) => ({
-                          ...prev,
-                          gender: e.target.value,
-                        }))
-                      }
-                      className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                      <option value="all">Alle</option>
-                      <option value="male">Menn</option>
-                      <option value="female">Kvinner</option>
-                    </select>
+              <div className="flex items-center gap-2">
+                <label
+                  htmlFor="previous-team-filter"
+                  className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  NTNUI i fjor:
+                </label>
+                <select
+                  id="previous-team-filter"
+                  value={filters.previousTeam}
+                  onChange={(e) =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      previousTeam: e.target.value,
+                    }))
+                  }
+                  className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                  <option value="all">Alle</option>
+                  <option value="yes">Ja</option>
+                  <option value="no">Nei</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <label
+                  htmlFor="desired-level-filter"
+                  className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Divisjon:
+                </label>
+                <select
+                  id="desired-level-filter"
+                  value={filters.desiredLevel}
+                  onChange={(e) =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      desiredLevel: e.target.value,
+                    }))
+                  }
+                  className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                  <option value="all">Alle</option>
+                  <option value="1">1. div</option>
+                  <option value="2">2. div</option>
+                  <option value="3">3. div</option>
+                  <option value="4">4. div</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <label
+                  htmlFor="desired-position-filter"
+                  className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Posisjon:
+                </label>
+                <select
+                  id="desired-position-filter"
+                  value={filters.desiredPosition}
+                  onChange={(e) =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      desiredPosition: e.target.value,
+                    }))
+                  }
+                  className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                  <option value="all">Alle</option>
+                  <option value="libero">Libero</option>
+                  <option value="setter">Setter</option>
+                  <option value="outside">Outside</option>
+                  <option value="middle">Middle</option>
+                  <option value="opposite">Opposite</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <label
+                  htmlFor="age-group-filter"
+                  className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Alder:
+                </label>
+                <select
+                  id="age-group-filter"
+                  value={filters.ageGroup}
+                  onChange={(e) =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      ageGroup: e.target.value,
+                    }))
+                  }
+                  className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                  <option value="all">Alle</option>
+                  <option value="under20">&lt;20</option>
+                  <option value="20-25">20-25</option>
+                  <option value="over25">&gt;25</option>
+                </select>
+              </div>
+
+              <button
+                onClick={() =>
+                  setFilters({
+                    gender: "all",
+                    isStudent: "all",
+                    previousTeam: "all",
+                    desiredLevel: "all",
+                    desiredPosition: "all",
+                    ageGroup: "all",
+                  })
+                }
+                className="px-3 py-1 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                Nullstill
+              </button>
+            </div>
+          </div>
+
+          {/* Main grid layout - keeping exact same styling */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:[grid-template-columns:repeat(14,minmax(0,1fr))] gap-6">
+            {/* Tilgjengelige spillere - keeping exact same styling */}
+            <div className="bg-white rounded-xl shadow-sm overflow-hidden animate-fade-in md:order-1 md:col-span-1 lg:col-span-5">
+              <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-4">
+                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                  <span>👥</span>
+                  Tilgjengelige spillere
+                </h2>
+              </div>
+              <div className="p-6">
+                {/* Søkefelt */}
+                <div className="mb-4">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Søk etter navn eller radnummer..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
+                    />
+                    <svg
+                      className="absolute left-3 top-2.5 h-5 w-5 text-gray-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                      />
+                    </svg>
                   </div>
-
-                  <div className="flex items-center gap-2">
-                    <label
-                      htmlFor="student-filter"
-                      className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Student:
-                    </label>
-                    <select
-                      id="student-filter"
-                      value={filters.isStudent}
-                      onChange={(e) =>
-                        setFilters((prev) => ({
-                          ...prev,
-                          isStudent: e.target.value,
-                        }))
-                      }
-                      className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                      <option value="all">Alle</option>
-                      <option value="yes">Ja</option>
-                      <option value="no">Nei</option>
-                    </select>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <label
-                      htmlFor="previous-team-filter"
-                      className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      NTNUI i fjor:
-                    </label>
-                    <select
-                      id="previous-team-filter"
-                      value={filters.previousTeam}
-                      onChange={(e) =>
-                        setFilters((prev) => ({
-                          ...prev,
-                          previousTeam: e.target.value,
-                        }))
-                      }
-                      className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                      <option value="all">Alle</option>
-                      <option value="yes">Ja</option>
-                      <option value="no">Nei</option>
-                    </select>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <label
-                      htmlFor="desired-level-filter"
-                      className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Divisjon:
-                    </label>
-                    <select
-                      id="desired-level-filter"
-                      value={filters.desiredLevel}
-                      onChange={(e) =>
-                        setFilters((prev) => ({
-                          ...prev,
-                          desiredLevel: e.target.value,
-                        }))
-                      }
-                      className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                      <option value="all">Alle</option>
-                      <option value="1">1. div</option>
-                      <option value="2">2. div</option>
-                      <option value="3">3. div</option>
-                      <option value="4">4. div</option>
-                    </select>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <label
-                      htmlFor="desired-position-filter"
-                      className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Posisjon:
-                    </label>
-                    <select
-                      id="desired-position-filter"
-                      value={filters.desiredPosition}
-                      onChange={(e) =>
-                        setFilters((prev) => ({
-                          ...prev,
-                          desiredPosition: e.target.value,
-                        }))
-                      }
-                      className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                      <option value="all">Alle</option>
-                      <option value="libero">Libero</option>
-                      <option value="setter">Setter</option>
-                      <option value="outside">Outside</option>
-                      <option value="middle">Middle</option>
-                      <option value="opposite">Opposite</option>
-                    </select>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <label
-                      htmlFor="age-group-filter"
-                      className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Alder:
-                    </label>
-                    <select
-                      id="age-group-filter"
-                      value={filters.ageGroup}
-                      onChange={(e) =>
-                        setFilters((prev) => ({
-                          ...prev,
-                          ageGroup: e.target.value,
-                        }))
-                      }
-                      className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                      <option value="all">Alle</option>
-                      <option value="under20">&lt;20</option>
-                      <option value="20-25">20-25</option>
-                      <option value="over25">&gt;25</option>
-                    </select>
-                  </div>
-
-                  <button
-                    onClick={() =>
-                      setFilters({
-                        gender: "all",
-                        isStudent: "all",
-                        previousTeam: "all",
-                        desiredLevel: "all",
-                        desiredPosition: "all",
-                        ageGroup: "all",
-                      })
-                    }
-                    className="px-3 py-1 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                    Nullstill
-                  </button>
+                  {searchTerm && (
+                    <p className="text-sm text-gray-600 mt-2">
+                      {debouncedSearchTerm === searchTerm
+                        ? `Viser ${
+                            available.slice(
+                              0,
+                              searchTerm ? available.length : 50
+                            ).length
+                          } av ${available.length} spillere`
+                        : `Søker...`}
+                    </p>
+                  )}
                 </div>
-              </div>
 
-              {/* Main grid layout - keeping exact same styling */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:[grid-template-columns:repeat(14,minmax(0,1fr))] gap-6">
-                {/* Tilgjengelige spillere - keeping exact same styling */}
-                <div className="bg-white rounded-xl shadow-sm overflow-hidden animate-fade-in md:order-1 md:col-span-1 lg:col-span-5">
-                  <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-4">
-                    <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                      <span>👥</span>
-                      Tilgjengelige spillere
-                    </h2>
+                {/* Scrollable list with virtualization */}
+                <AvailableDropZone>
+                  <div
+                    className="player-card-container mt-2 max-h-[100vh] overflow-y-auto overflow-x-hidden pr-2"
+                    style={{ WebkitOverflowScrolling: "touch" }}>
+                    <VirtualizedPlayerList
+                      players={available}
+                      positions={POSITIONS}
+                      positionIcons={positionIcons}
+                      onSelectPosition={(
+                        pos: string,
+                        player: { name: string }
+                      ) => updateSelection(pos as Position, player)}
+                      onAddPotential={(p) => addToPotential(p as Player)}
+                      isSaving={isSaving}
+                      batchSize={20}
+                    />
                   </div>
-                  <div className="p-6">
-                    {/* Søkefelt */}
-                    <div className="mb-4">
-                      <div className="relative">
-                        <input
-                          type="text"
-                          placeholder="Søk etter navn eller radnummer..."
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                          className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
-                        />
-                        <svg
-                          className="absolute left-3 top-2.5 h-5 w-5 text-gray-400"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24">
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                          />
-                        </svg>
-                      </div>
-                      {searchTerm && (
-                        <p className="text-sm text-gray-600 mt-2">
-                          {debouncedSearchTerm === searchTerm
-                            ? `Viser ${
-                                available.slice(
-                                  0,
-                                  searchTerm ? available.length : 50
-                                ).length
-                              } av ${available.length} spillere`
-                            : `Søker...`}
-                        </p>
-                      )}
+                </AvailableDropZone>
+              </div>
+            </div>
+
+            {/* Rest of the UI - keeping exact same styling and functionality */}
+
+            {/* Potensielle spillere */}
+            <div
+              className="bg-gradient-to-br from-orange-500 via-orange-400 to-yellow-500 rounded-xl shadow-sm overflow-hidden animate-fade-in md:order-3 md:col-span-2 lg:col-span-4"
+              style={{ animationDelay: "0.1s" }}>
+              <div className="bg-black/10 px-6 py-4">
+                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                  <span>⭐</span>
+                  Potensielle spillere
+                </h2>
+              </div>
+              <div className="p-6 bg-white/20 backdrop-blur-sm">
+                <PotentialDropZone>
+                  {potentialPlayers.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <span className="text-4xl mb-4 block">⭐</span>
+                      <p className="text-gray-700">
+                        Ingen potensielle spillere valgt
+                      </p>
+                      <p className="text-sm text-gray-500 mt-2">
+                        Dra spillere hit eller klikk ⭐ for å legge til
+                      </p>
                     </div>
-
-                    {/* Scrollable list */}
-                    <AvailableDropZone>
-                      <div
-                        className="mt-2 max-h-[100vh] overflow-y-auto overflow-x-hidden pr-2"
-                        style={{ WebkitOverflowScrolling: "touch" }}>
-                        {available.length === 0 ? (
-                          <div className="text-center py-8 text-gray-500">
-                            <span className="text-4xl mb-4 block">🎉</span>
-                            <p className="text-gray-700">
-                              {searchTerm
-                                ? "Ingen spillere funnet"
-                                : "Alle spillere er valgt til lag eller potensielle!"}
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="space-y-3 pb-2">
-                            {available.map((player, index) => (
-                              <PlayerCard
-                                key={`available-${player.name}-${
-                                  player.registrationNumber ||
-                                  player.rowNumber ||
-                                  `idx-${index}`
-                                }`}
-                                player={player}
-                                positions={POSITIONS}
-                                positionIcons={positionIcons}
-                                onSelectPosition={(
-                                  pos: string,
-                                  player: { name: string }
-                                ) => updateSelection(pos as Position, player)}
-                                onAddPotential={(p) =>
-                                  addToPotential(p as Player)
-                                }
-                                isSaving={isSaving}
-                                index={index}
-                                id={`available-${player.name}-${index}`}
-                              />
-                            ))}
-                            {available.length > 0 && (
-                              <div className="text-center py-2 text-gray-500 text-sm bg-gray-50 rounded-lg">
-                                Viser alle {available.length} tilgjengelige
-                                spillere
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </AvailableDropZone>
-                  </div>
-                </div>
-
-                {/* Rest of the UI - keeping exact same styling and functionality */}
-
-                {/* Potensielle spillere */}
-                <div
-                  className="bg-gradient-to-br from-orange-500 via-orange-400 to-yellow-500 rounded-xl shadow-sm overflow-hidden animate-fade-in md:order-3 md:col-span-2 lg:col-span-4"
-                  style={{ animationDelay: "0.1s" }}>
-                  <div className="bg-black/10 px-6 py-4">
-                    <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                      <span>⭐</span>
-                      Potensielle spillere
-                    </h2>
-                  </div>
-                  <div className="p-6 bg-white/20 backdrop-blur-sm">
-                    <PotentialDropZone>
-                      {potentialPlayers.length === 0 ? (
-                        <div className="text-center py-8 text-gray-500">
-                          <span className="text-4xl mb-4 block">⭐</span>
-                          <p className="text-gray-700">
-                            Ingen potensielle spillere valgt
-                          </p>
-                          <p className="text-sm text-gray-500 mt-2">
-                            Dra spillere hit eller klikk ⭐ for å legge til
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="space-y-6">
-                          {POSITIONS.map((pos) => (
-                            <div key={pos}>
-                              <h3 className="font-semibold text-sm text-white mb-3 flex items-center gap-2">
-                                <span
-                                  className={`w-6 h-6 ${positionColors[pos]} rounded-full flex items-center justify-center text-white text-xs`}>
-                                  {positionIcons[pos]}
-                                </span>
-                                <span>{pos}</span>
-                                <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">
-                                  {filteredPotentialGroups[pos].length}
-                                </span>
-                              </h3>
-                              <PotentialPositionDropZone targetPosition={pos}>
-                                {filteredPotentialGroups[pos].length === 0 ? (
-                                  <p className="text-gray-500 italic min-h-[50px] flex items-center">
-                                    Ingen potensielle - dra hit for å endre
-                                    posisjon
-                                  </p>
-                                ) : (
-                                  <div className="space-y-2">
-                                    {filteredPotentialGroups[pos].map(
-                                      (playerName, index) => (
-                                        <DraggablePotentialPlayer
-                                          key={`potential-${pos}-${playerName}-${
-                                            nameToRegistrationNumber[
-                                              playerName
-                                            ] ||
-                                            nameToRow[playerName] ||
-                                            `idx-${index}`
-                                          }`}
-                                          playerName={playerName}
-                                          position={pos}
-                                          index={index}
-                                        />
-                                      )
-                                    )}
-                                  </div>
-                                )}
-                              </PotentialPositionDropZone>
-                            </div>
-                          ))}
-
-                          {filteredPotentialGroups["Ukjent"].length > 0 && (
-                            <div>
-                              <h3 className="font-semibold text-sm text-white mb-3 flex items-center gap-2">
-                                <span className="w-6 h-6 bg-gray-400 rounded-full flex items-center justify-center text-white text-xs">
-                                  ?
-                                </span>
-                                <span>Ukjent</span>
-                                <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">
-                                  {filteredPotentialGroups["Ukjent"].length}
-                                </span>
-                              </h3>
-                              <PotentialPositionDropZone targetPosition="Ukjent">
-                                <div className="space-y-2">
-                                  {filteredPotentialGroups["Ukjent"].map(
-                                    (playerName, index) => (
-                                      <DraggablePotentialPlayer
-                                        key={`potential-ukjent-${playerName}-${
-                                          nameToRegistrationNumber[
-                                            playerName
-                                          ] ||
-                                          nameToRow[playerName] ||
-                                          `idx-${index}`
-                                        }`}
-                                        playerName={playerName}
-                                        position="Ukjent"
-                                        index={index}
-                                      />
-                                    )
-                                  )}
-                                </div>
-                              </PotentialPositionDropZone>
-                            </div>
-                          )}
-
-                          {/* Always show Ukjent drop zone if not already shown */}
-                          {filteredPotentialGroups["Ukjent"].length === 0 && (
-                            <div>
-                              <h3 className="font-semibold text-sm text-white mb-3 flex items-center gap-2">
-                                <span className="w-6 h-6 bg-gray-400 rounded-full flex items-center justify-center text-white text-xs">
-                                  ?
-                                </span>
-                                <span>Ukjent</span>
-                                <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">
-                                  0
-                                </span>
-                              </h3>
-                              <PotentialPositionDropZone targetPosition="Ukjent">
-                                <p className="text-gray-500 italic min-h-[50px] flex items-center">
-                                  Dra spillere hit for ukjent posisjon
-                                </p>
-                              </PotentialPositionDropZone>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </PotentialDropZone>
-                  </div>
-                </div>
-
-                {/* Laguttak */}
-                <div
-                  className="bg-gradient-to-br from-purple-500 via-purple-400 to-pink-500 rounded-xl shadow-sm overflow-hidden animate-fade-in md:order-2 md:col-span-1 lg:col-span-5"
-                  style={{ animationDelay: "0.2s" }}>
-                  <div className="bg-black/10 px-6 py-4">
-                    <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                      <span>🏆</span>
-                      Laguttak
-                    </h2>
-                  </div>
-                  <div className="p-6 bg-white/20 backdrop-blur-sm">
+                  ) : (
                     <div className="space-y-6">
                       {POSITIONS.map((pos) => (
-                        <PositionSection
-                          key={pos}
-                          position={pos}
-                          players={selection[pos]}
-                          positionColors={positionColors}
-                          positionIcons={positionIcons}
-                          onRemovePlayer={(pos, playerName) =>
-                            removePlayer(pos as Position, playerName)
-                          }
-                          onMovePlayer={(fromPos, playerName, toPos) =>
-                            movePlayer(
-                              fromPos as Position,
-                              playerName,
-                              toPos as Position
-                            )
-                          }
-                          onAddToPotential={moveFromTeamToPotential}
-                          positions={POSITIONS}
-                          isSaving={isSaving}
-                          nameToRegistrationNumber={nameToRegistrationNumber}
-                          nameToRow={nameToRow}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Spillere etter posisjon - keeping exact same functionality */}
-              <div className="mt-8 bg-white rounded-xl shadow-sm overflow-hidden">
-                <div className="bg-gradient-to-r from-indigo-500 to-blue-600 px-6 py-4">
-                  <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                    <span>📋</span>
-                    Spillere etter ønsket posisjon
-                  </h2>
-                </div>
-                <div className="p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-                    {POSITIONS.map((position) => {
-                      const positionPlayers = players
-                        .filter((player) => {
-                          const positions =
-                            player.desiredPositions?.toLowerCase() || "";
-                          return positions.includes(position.toLowerCase());
-                        })
-                        .filter((player) => {
-                          // Apply same filters as available players
-                          return getFilteredPlayers([player]).length > 0;
-                        });
-
-                      return (
-                        <div key={position} className="space-y-3">
-                          <h3 className="font-semibold text-sm flex items-center gap-2 pb-2 border-b border-gray-200">
+                        <div key={pos}>
+                          <h3 className="font-semibold text-sm text-white mb-3 flex items-center gap-2">
                             <span
-                              className={`w-5 h-5 ${positionColors[position]} rounded-full flex items-center justify-center text-white text-xs`}>
-                              {positionIcons[position]}
+                              className={`w-6 h-6 ${positionColors[pos]} rounded-full flex items-center justify-center text-white text-xs`}>
+                              {positionIcons[pos]}
                             </span>
-                            <span className="text-gray-800 text-sm">
-                              {position}
-                            </span>
-                            <span className="text-xs text-gray-600">
-                              ({positionPlayers.length})
+                            <span>{pos}</span>
+                            <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">
+                              {filteredPotentialGroups[pos].length}
                             </span>
                           </h3>
-                          <div className="space-y-2 max-h-96 overflow-y-auto">
-                            {positionPlayers.length === 0 ? (
-                              <p className="text-gray-500 italic text-sm">
-                                Ingen spillere ønsker denne posisjonen
+                          <PotentialPositionDropZone targetPosition={pos}>
+                            {filteredPotentialGroups[pos].length === 0 ? (
+                              <p className="text-gray-500 italic min-h-[50px] flex items-center">
+                                Ingen potensielle - dra hit for å endre posisjon
                               </p>
                             ) : (
-                              positionPlayers.map((player) => {
-                                const isAvailable = available.some(
-                                  (p) => p.name === player.name
-                                );
-                                const isInTeam = POSITIONS.some((pos) =>
-                                  selection[pos].includes(player.name)
-                                );
-                                const isPotential = potentialPlayers.includes(
-                                  player.name
-                                );
-
-                                let statusColor = "";
-                                let statusText = "";
-                                let statusIcon = "";
-
-                                if (isInTeam) {
-                                  statusColor =
-                                    "bg-green-100 text-green-800 border-green-200";
-                                  statusText = "I lag";
-                                  statusIcon = "✅";
-                                } else if (isPotential) {
-                                  statusColor =
-                                    "bg-orange-100 text-orange-800 border-orange-200";
-                                  statusText = "Potensiell";
-                                  statusIcon = "⭐";
-                                } else if (isAvailable) {
-                                  statusColor =
-                                    "bg-blue-100 text-blue-800 border-blue-200";
-                                  statusText = "Tilgjengelig";
-                                  statusIcon = "👤";
-                                } else {
-                                  statusColor =
-                                    "bg-gray-100 text-gray-600 border-gray-200";
-                                  statusText = "Ukjent";
-                                  statusIcon = "❓";
-                                }
-
-                                return (
-                                  <div
-                                    key={`position-overview-${position}-${
-                                      player.name
-                                    }-${
-                                      player.registrationNumber ||
-                                      player.rowNumber ||
-                                      `idx-${positionPlayers.indexOf(player)}`
-                                    }`}
-                                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                                    <div className="flex items-center gap-2 min-w-0">
-                                      {(player.registrationNumber ||
-                                        player.rowNumber) && (
-                                        <span
-                                          className="text-[11px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 shrink-0"
-                                          title={
-                                            player.registrationNumber
-                                              ? `Registreringsnummer ${player.registrationNumber}`
-                                              : `Rad ${player.rowNumber}`
-                                          }>
-                                          #
-                                          {player.registrationNumber ||
-                                            (player.rowNumber
-                                              ? player.rowNumber + 98
-                                              : "")}
-                                        </span>
-                                      )}
-                                      <span
-                                        className="font-medium text-gray-800 truncate text-sm"
-                                        title={player.name}>
-                                        {player.name}
-                                      </span>
-                                    </div>
-                                    <span
-                                      className={`text-xs px-2 py-1 rounded-full border shrink-0 ${statusColor}`}
-                                      title={statusText}>
-                                      {statusIcon}
-                                    </span>
-                                  </div>
-                                );
-                              })
+                              <div className="space-y-2">
+                                {filteredPotentialGroups[pos].map(
+                                  (playerName, index) => (
+                                    <DraggablePotentialPlayer
+                                      key={`potential-${pos}-${playerName}-${
+                                        nameToRegistrationNumber[playerName] ||
+                                        nameToRow[playerName] ||
+                                        `idx-${index}`
+                                      }`}
+                                      playerName={playerName}
+                                      position={pos}
+                                      index={index}
+                                    />
+                                  )
+                                )}
+                              </div>
                             )}
-                          </div>
+                          </PotentialPositionDropZone>
                         </div>
-                      );
-                    })}
-                  </div>
+                      ))}
+
+                      {filteredPotentialGroups["Ukjent"].length > 0 && (
+                        <div>
+                          <h3 className="font-semibold text-sm text-white mb-3 flex items-center gap-2">
+                            <span className="w-6 h-6 bg-gray-400 rounded-full flex items-center justify-center text-white text-xs">
+                              ?
+                            </span>
+                            <span>Ukjent</span>
+                            <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">
+                              {filteredPotentialGroups["Ukjent"].length}
+                            </span>
+                          </h3>
+                          <PotentialPositionDropZone targetPosition="Ukjent">
+                            <div className="space-y-2">
+                              {filteredPotentialGroups["Ukjent"].map(
+                                (playerName, index) => (
+                                  <DraggablePotentialPlayer
+                                    key={`potential-ukjent-${playerName}-${
+                                      nameToRegistrationNumber[playerName] ||
+                                      nameToRow[playerName] ||
+                                      `idx-${index}`
+                                    }`}
+                                    playerName={playerName}
+                                    position="Ukjent"
+                                    index={index}
+                                  />
+                                )
+                              )}
+                            </div>
+                          </PotentialPositionDropZone>
+                        </div>
+                      )}
+
+                      {/* Always show Ukjent drop zone if not already shown */}
+                      {filteredPotentialGroups["Ukjent"].length === 0 && (
+                        <div>
+                          <h3 className="font-semibold text-sm text-white mb-3 flex items-center gap-2">
+                            <span className="w-6 h-6 bg-gray-400 rounded-full flex items-center justify-center text-white text-xs">
+                              ?
+                            </span>
+                            <span>Ukjent</span>
+                            <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">
+                              0
+                            </span>
+                          </h3>
+                          <PotentialPositionDropZone targetPosition="Ukjent">
+                            <p className="text-gray-500 italic min-h-[50px] flex items-center">
+                              Dra spillere hit for ukjent posisjon
+                            </p>
+                          </PotentialPositionDropZone>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </PotentialDropZone>
+              </div>
+            </div>
+
+            {/* Laguttak */}
+            <div
+              className="bg-gradient-to-br from-purple-500 via-purple-400 to-pink-500 rounded-xl shadow-sm overflow-hidden animate-fade-in md:order-2 md:col-span-1 lg:col-span-5"
+              style={{ animationDelay: "0.2s" }}>
+              <div className="bg-black/10 px-6 py-4">
+                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                  <span>🏆</span>
+                  Laguttak
+                </h2>
+              </div>
+              <div className="p-6 bg-white/20 backdrop-blur-sm">
+                <div className="space-y-6">
+                  {POSITIONS.map((pos) => (
+                    <PositionSection
+                      key={pos}
+                      position={pos}
+                      players={selection[pos]}
+                      positionColors={positionColors}
+                      positionIcons={positionIcons}
+                      onRemovePlayer={(pos, playerName) =>
+                        removePlayer(pos as Position, playerName)
+                      }
+                      onMovePlayer={(fromPos, playerName, toPos) =>
+                        movePlayer(
+                          fromPos as Position,
+                          playerName,
+                          toPos as Position
+                        )
+                      }
+                      onAddToPotential={moveFromTeamToPotential}
+                      positions={POSITIONS}
+                      isSaving={isSaving}
+                      nameToRegistrationNumber={nameToRegistrationNumber}
+                      nameToRow={nameToRow}
+                    />
+                  ))}
                 </div>
               </div>
+            </div>
+          </div>
 
-              {/* Notification */}
-              <Notification
-                message={notification.message}
-                type={notification.type}
-                isVisible={notification.isVisible}
-                onClose={() =>
-                  setNotification((prev) => ({ ...prev, isVisible: false }))
-                }
-              />
+          {/* Spillere etter posisjon - keeping exact same functionality */}
+          <div className="mt-8 bg-white rounded-xl shadow-sm overflow-hidden">
+            <div className="bg-gradient-to-r from-indigo-500 to-blue-600 px-6 py-4">
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                <span>📋</span>
+                Spillere etter ønsket posisjon
+              </h2>
+            </div>
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+                {POSITIONS.map((position) => {
+                  const positionPlayers = players
+                    .filter((player) => {
+                      const positions =
+                        player.desiredPositions?.toLowerCase() || "";
+                      return positions.includes(position.toLowerCase());
+                    })
+                    .filter((player) => {
+                      // Apply same filters as available players
+                      return getFilteredPlayers([player]).length > 0;
+                    });
+
+                  return (
+                    <div key={position} className="space-y-3">
+                      <h3 className="font-semibold text-sm flex items-center gap-2 pb-2 border-b border-gray-200">
+                        <span
+                          className={`w-5 h-5 ${positionColors[position]} rounded-full flex items-center justify-center text-white text-xs`}>
+                          {positionIcons[position]}
+                        </span>
+                        <span className="text-gray-800 text-sm">
+                          {position}
+                        </span>
+                        <span className="text-xs text-gray-600">
+                          ({positionPlayers.length})
+                        </span>
+                      </h3>
+                      <div className="space-y-2 max-h-96 overflow-y-auto">
+                        {positionPlayers.length === 0 ? (
+                          <p className="text-gray-500 italic text-sm">
+                            Ingen spillere ønsker denne posisjonen
+                          </p>
+                        ) : (
+                          positionPlayers.map((player) => {
+                            const isAvailable = available.some(
+                              (p) => p.name === player.name
+                            );
+                            const isInTeam = POSITIONS.some((pos) =>
+                              selection[pos].includes(player.name)
+                            );
+                            const isPotential = potentialPlayers.includes(
+                              player.name
+                            );
+
+                            let statusColor = "";
+                            let statusText = "";
+                            let statusIcon = "";
+
+                            if (isInTeam) {
+                              statusColor =
+                                "bg-green-100 text-green-800 border-green-200";
+                              statusText = "I lag";
+                              statusIcon = "✅";
+                            } else if (isPotential) {
+                              statusColor =
+                                "bg-orange-100 text-orange-800 border-orange-200";
+                              statusText = "Potensiell";
+                              statusIcon = "⭐";
+                            } else if (isAvailable) {
+                              statusColor =
+                                "bg-blue-100 text-blue-800 border-blue-200";
+                              statusText = "Tilgjengelig";
+                              statusIcon = "👤";
+                            } else {
+                              statusColor =
+                                "bg-gray-100 text-gray-600 border-gray-200";
+                              statusText = "Ukjent";
+                              statusIcon = "❓";
+                            }
+
+                            return (
+                              <div
+                                key={`position-overview-${position}-${
+                                  player.name
+                                }-${
+                                  player.registrationNumber ||
+                                  player.rowNumber ||
+                                  `idx-${positionPlayers.indexOf(player)}`
+                                }`}
+                                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  {(player.registrationNumber ||
+                                    player.rowNumber) && (
+                                    <span
+                                      className="text-[11px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 shrink-0"
+                                      title={
+                                        player.registrationNumber
+                                          ? `Registreringsnummer ${player.registrationNumber}`
+                                          : `Rad ${player.rowNumber}`
+                                      }>
+                                      #
+                                      {player.registrationNumber ||
+                                        (player.rowNumber
+                                          ? player.rowNumber + 98
+                                          : "")}
+                                    </span>
+                                  )}
+                                  <span
+                                    className="font-medium text-gray-800 truncate text-sm"
+                                    title={player.name}>
+                                    {player.name}
+                                  </span>
+                                </div>
+                                <span
+                                  className={`text-xs px-2 py-1 rounded-full border shrink-0 ${statusColor}`}
+                                  title={statusText}>
+                                  {statusIcon}
+                                </span>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Notification */}
+          <Notification
+            message={notification.message}
+            type={notification.type}
+            isVisible={notification.isVisible}
+            onClose={() =>
+              setNotification((prev) => ({ ...prev, isVisible: false }))
+            }
+          />
         </div>
       </div>
     </DragDropWrapper>

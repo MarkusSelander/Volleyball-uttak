@@ -2,9 +2,9 @@
 import { google } from "googleapis";
 import DashboardClient from "./DashboardClient";
 
-// ISR - revalidate data every 10 minutes (600 seconds)
-// Optimized for volleyball registration scenario where data doesn't change frequently
-export const revalidate = 600;
+// ISR - revalidate data every 5 minutes (300 seconds) for better LCP
+// More frequent updates for better user experience while maintaining performance
+export const revalidate = 300;
 
 interface PlayerData {
   name: string;

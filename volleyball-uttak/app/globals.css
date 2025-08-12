@@ -36,7 +36,7 @@ body {
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
 
-/* Animasjoner */
+/* Animasjoner with performance optimizations */
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -91,18 +91,22 @@ body {
 
 .animate-fade-in {
   animation: fadeIn 0.6s ease-out;
+  will-change: opacity, transform;
 }
 
 .animate-slide-in {
   animation: slideIn 0.5s ease-out;
+  will-change: opacity, transform;
 }
 
 .animate-pulse-slow {
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  will-change: opacity;
 }
 
 .animate-bounce-slow {
   animation: bounce 2s infinite;
+  will-change: transform;
 }
 
 /* Gradient bakgrunner */
@@ -130,9 +134,10 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-/* Hover effekter */
+/* Hover effekter with performance optimizations */
 .hover-lift {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  will-change: transform, box-shadow;
 }
 
 .hover-lift:hover {
@@ -227,6 +232,20 @@ html {
   }
 }
 
+/* Performance optimizations */
+.stats-container {
+  contain: layout style;
+}
+
+.player-card-container {
+  contain: layout style;
+  will-change: transform;
+}
+
+.position-section-container {
+  contain: layout style;
+}
+
 /* Drag and drop optimizations */
 [data-dnd-context] {
   /* Prevent text selection during drag */
@@ -234,6 +253,8 @@ html {
   -moz-user-select: none;
   -ms-user-select: none;
   user-select: none;
+  /* Improve performance during drag operations */
+  contain: layout style;
 }
 
 /* Enhanced feedback for dragging state - Only apply to draggable items, not the whole context */

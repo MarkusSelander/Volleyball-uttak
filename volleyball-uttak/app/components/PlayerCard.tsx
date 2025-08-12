@@ -1,5 +1,5 @@
 import { useDraggable } from "@dnd-kit/core";
-import React from "react";
+import { memo } from "react";
 
 interface PlayerCardProps {
   player: { name: string; registrationNumber?: string; rowNumber?: number };
@@ -12,7 +12,7 @@ interface PlayerCardProps {
   id: string;
 }
 
-function PlayerCard({
+const PlayerCard = memo(function PlayerCard({
   player,
   positions,
   positionIcons,
@@ -122,6 +122,6 @@ function PlayerCard({
       </select>
     </div>
   );
-}
+});
 
-export default React.memo(PlayerCard);
+export default PlayerCard;

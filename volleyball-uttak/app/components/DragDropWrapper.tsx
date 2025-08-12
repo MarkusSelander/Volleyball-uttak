@@ -41,8 +41,7 @@ export default function DragDropWrapper({
     <DndContext
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      sensors={sensors}
-    >
+      sensors={sensors}>
       {children}
     </DndContext>
   );
