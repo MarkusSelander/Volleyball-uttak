@@ -260,12 +260,40 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
         // Søketerm filter (debounced for better performance)
         if (debouncedSearchTerm) {
           const searchLower = debouncedSearchTerm.toLowerCase();
+          const searchTerm = debouncedSearchTerm.trim();
+          
+          // Navn match
           const nameMatch = player.name.toLowerCase().includes(searchLower);
-          const rowMatch =
-            player.registrationNumber
-              ?.toString()
-              .includes(debouncedSearchTerm) || false;
-          if (!nameMatch && !rowMatch) return false;
+          
+          // Registreringsnummer match (både med og uten #)
+          let registrationMatch = false;
+          if (player.registrationNumber) {
+            const regNum = player.registrationNumber.toString();
+            registrationMatch = 
+              regNum.includes(searchTerm) || // Direkte match
+              regNum.toLowerCase().includes(searchLower) || // Case insensitive
+              searchTerm.startsWith('#') && regNum.includes(searchTerm.substring(1)) || // Med #
+              `#${regNum}`.toLowerCase().includes(searchLower); // Søk med # på nummer uten
+          }
+          
+          // Rad nummer match (fallback for eldre data + 98 offset)
+          let rowMatch = false;
+          if (player.rowNumber) {
+            const displayRowNum = (player.rowNumber + 98).toString();
+            rowMatch = 
+              displayRowNum.includes(searchTerm) ||
+              searchTerm.startsWith('#') && displayRowNum.includes(searchTerm.substring(1)) ||
+              `#${displayRowNum}`.toLowerCase().includes(searchLower);
+          }
+          
+          // Hvis søket bare er tall, prioriter registreringsnummer/rad nummer
+          const isNumericSearch = /^\d+$/.test(searchTerm);
+          if (isNumericSearch && (registrationMatch || rowMatch)) {
+            // Brukeren søker på et spesifikt nummer, så vi kan være mer streng
+            return registrationMatch || rowMatch;
+          }
+          
+          if (!nameMatch && !registrationMatch && !rowMatch) return false;
         }
 
         // Gender filter
@@ -1313,7 +1341,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                   <div className="relative">
                     <input
                       type="text"
-                      placeholder="Søk etter navn eller radnummer..."
+                      placeholder="Søk etter navn eller registreringsnummer (f.eks. 'Ole' eller '#123')..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
