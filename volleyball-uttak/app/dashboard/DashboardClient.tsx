@@ -5,6 +5,7 @@ import {
   DragEndEvent,
   MouseSensor,
   TouchSensor,
+  useDraggable,
   useDroppable,
   useSensor,
   useSensors,
@@ -121,17 +122,17 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
 
   const router = useRouter();
 
-  // Configure sensors for better touch support
+  // Configure sensors for better touch support and drag activation
   const mouseSensor = useSensor(MouseSensor, {
     activationConstraint: {
-      distance: 8,
+      distance: 5, // Reduced for easier activation
     },
   });
 
   const touchSensor = useSensor(TouchSensor, {
     activationConstraint: {
-      delay: 200,
-      tolerance: 8,
+      delay: 150, // Reduced delay for better responsiveness
+      tolerance: 5, // Reduced tolerance for easier activation
     },
   });
 
@@ -631,6 +632,127 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
     showNotification(`${playerName} fjernet fra potensielle spillere`, "info");
   };
 
+  const movePotentialPlayer = async (
+    playerName: string,
+    targetPosition: Position | "Ukjent"
+  ) => {
+    setPotentialGroups((prev) => {
+      // First remove from all positions
+      const next: PotentialGroups = {
+        Midt: prev.Midt.filter((n) => n !== playerName),
+        Dia: prev.Dia.filter((n) => n !== playerName),
+        Legger: prev.Legger.filter((n) => n !== playerName),
+        Libero: prev.Libero.filter((n) => n !== playerName),
+        Kant: prev.Kant.filter((n) => n !== playerName),
+        Ukjent: prev.Ukjent.filter((n) => n !== playerName),
+      };
+
+      // Add to target position
+      next[targetPosition] = [...next[targetPosition], playerName];
+
+      const flat = flattenGroups(next);
+      setPotentialPlayers(flat);
+      saveToLocalStorage(selection, flat);
+
+      return next;
+    });
+
+    const suffix =
+      targetPosition !== "Ukjent" ? ` til ${targetPosition}` : " til Ukjent";
+    showNotification(`${playerName} flyttet${suffix}`, "success");
+  };
+
+  // Draggable potential player component
+  const DraggablePotentialPlayer = ({
+    playerName,
+    position,
+    index,
+  }: {
+    playerName: string;
+    position: string;
+    index: number;
+  }) => {
+    const { attributes, listeners, setNodeRef, transform, isDragging } =
+      useDraggable({
+        id: `potential-${position}-${playerName}-${index}`,
+        data: {
+          type: "potential-player",
+          playerName,
+          fromPosition: position,
+        },
+      });
+
+    const style = transform
+      ? {
+          transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+        }
+      : undefined;
+
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        className={`bg-white/80 border border-white/30 rounded-lg p-3 hover:bg-white/90 transition-colors ${
+          isDragging
+            ? "opacity-70 shadow-xl z-50 bg-white border-2 border-blue-300"
+            : ""
+        }`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 min-w-0">
+            {/* Drag handle */}
+            <button
+              type="button"
+              className="p-1.5 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing touch-manipulation select-none min-w-[32px] min-h-[32px] flex items-center justify-center rounded-lg hover:bg-gray-200/50 active:bg-gray-300/50 transition-colors"
+              aria-label="Dra for å flytte"
+              title="Dra for å flytte"
+              {...attributes}
+              {...listeners}
+              onClick={(e) => e.stopPropagation()}>
+              <svg
+                className="w-4 h-4 pointer-events-none"
+                viewBox="0 0 20 20"
+                fill="currentColor">
+                <path d="M7 4a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 8a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 12a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 16a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2z" />
+              </svg>
+            </button>
+            {(nameToRegistrationNumber[playerName] ||
+              nameToRow[playerName]) && (
+              <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 shrink-0">
+                #
+                {nameToRegistrationNumber[playerName] ||
+                  (nameToRow[playerName] ? nameToRow[playerName] + 98 : "")}
+              </span>
+            )}
+            <span className="font-medium text-gray-800 truncate text-sm">
+              {playerName}
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => removeFromPotential(playerName)}
+              disabled={isSaving}
+              className="text-red-500 hover:text-red-700 p-2 md:p-1.5 rounded-full transition-colors hover:bg-red-50 hover:scale-110 touch-manipulation min-w-[44px] min-h-[44px] md:min-w-[32px] md:min-h-[32px] flex items-center justify-center"
+              title="Fjern fra potensielle"
+              type="button">
+              <svg
+                className="w-4 h-4 md:w-4 md:h-4 pointer-events-none"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const totalSelected = POSITIONS.reduce(
     (sum, pos) => sum + selection[pos].length,
     0
@@ -663,7 +785,151 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
 
   const handleDragEnd = (event: DragEndEvent) => {
     setIsDragging(false);
-    // Existing drag handling logic would go here...
+
+    const { active, over } = event;
+
+    // If no valid drop target, do nothing
+    if (!over) return;
+
+    const activeData = active.data.current;
+    const overData = over.data.current;
+
+    if (!activeData || !overData) {
+      console.warn("Drag and drop: Missing data", { activeData, overData });
+      return;
+    }
+
+    try {
+      // Handle dragging available player to position
+      if (
+        activeData.type === "available-player" &&
+        overData.type === "position"
+      ) {
+        const player = activeData.player;
+        const targetPosition = overData.position as Position;
+        console.log(
+          "Dropping available player to position:",
+          player.name,
+          "→",
+          targetPosition
+        );
+        updateSelection(targetPosition, player);
+      }
+
+      // Handle dragging available player to potential drop zone
+      else if (
+        activeData.type === "available-player" &&
+        overData.type === "potential-drop"
+      ) {
+        const player = activeData.player;
+        console.log("Adding player to potential:", player.name);
+        addToPotential(player);
+      }
+
+      // Handle dragging team player between positions
+      else if (
+        activeData.type === "team-player" &&
+        overData.type === "position"
+      ) {
+        const playerName = activeData.playerName;
+        const fromPosition = activeData.fromPosition as Position;
+        const toPosition = overData.position as Position;
+        console.log(
+          "Moving team player:",
+          playerName,
+          fromPosition,
+          "→",
+          toPosition
+        );
+        movePlayer(fromPosition, playerName, toPosition);
+      }
+
+      // Handle dragging team player to available drop zone
+      else if (
+        activeData.type === "team-player" &&
+        overData.type === "available-drop"
+      ) {
+        const playerName = activeData.playerName;
+        const fromPosition = activeData.fromPosition as Position;
+        console.log("Removing team player:", playerName, "from", fromPosition);
+        removePlayer(fromPosition, playerName);
+      }
+
+      // Handle dragging potential player to position
+      else if (
+        activeData.type === "potential-player" &&
+        overData.type === "position"
+      ) {
+        const playerName = activeData.playerName;
+        const targetPosition = overData.position as Position;
+        const player = players.find((p) => p.name === playerName);
+        if (player) {
+          console.log(
+            "Moving potential player to position:",
+            playerName,
+            "→",
+            targetPosition
+          );
+          removeFromPotential(playerName);
+          updateSelection(targetPosition, player);
+        }
+      }
+
+      // Handle dragging potential player to available drop zone
+      else if (
+        activeData.type === "potential-player" &&
+        overData.type === "available-drop"
+      ) {
+        const playerName = activeData.playerName;
+        console.log("Removing potential player:", playerName);
+        removeFromPotential(playerName);
+      }
+
+      // Handle dragging potential player to potential drop zone (different position)
+      else if (
+        activeData.type === "potential-player" &&
+        overData.type === "potential-position-drop"
+      ) {
+        const playerName = activeData.playerName;
+        const targetPosition = overData.targetPosition;
+        const fromPosition = activeData.fromPosition;
+
+        console.log(
+          "Moving potential player between positions:",
+          playerName,
+          fromPosition,
+          "→",
+          targetPosition
+        );
+
+        if (fromPosition !== targetPosition) {
+          movePotentialPlayer(playerName, targetPosition);
+        }
+      }
+
+      // Handle dragging potential player to potential drop zone (same area)
+      else if (
+        activeData.type === "potential-player" &&
+        overData.type === "potential-drop"
+      ) {
+        const playerName = activeData.playerName;
+        const player = players.find((p) => p.name === playerName);
+        if (player) {
+          console.log("Re-organizing potential player:", playerName);
+          // Remove from current position and re-add (will place in correct position group)
+          removeFromPotential(playerName);
+          setTimeout(() => addToPotential(player), 100); // Small delay to ensure state update
+        }
+      } else {
+        console.log("Unhandled drag operation:", {
+          activeType: activeData.type,
+          overType: overData.type,
+        });
+      }
+    } catch (error) {
+      console.error("Error handling drag and drop:", error);
+      showNotification("Feil ved drag and drop-operasjon", "error");
+    }
   };
 
   // Drop zone components (keeping existing styling)
@@ -681,6 +947,34 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
         className={`min-h-[100px] transition-all duration-200 ${
           isOver
             ? "bg-orange-100 border-2 border-orange-300 border-dashed rounded-lg"
+            : ""
+        }`}>
+        {children}
+      </div>
+    );
+  };
+
+  const PotentialPositionDropZone = ({
+    children,
+    targetPosition,
+  }: {
+    children: React.ReactNode;
+    targetPosition: Position | "Ukjent";
+  }) => {
+    const { setNodeRef, isOver } = useDroppable({
+      id: `potential-position-${targetPosition}`,
+      data: {
+        type: "potential-position-drop",
+        targetPosition,
+      },
+    });
+
+    return (
+      <div
+        ref={setNodeRef}
+        className={`min-h-[50px] transition-all duration-200 ${
+          isOver
+            ? "bg-yellow-100 border-2 border-yellow-300 border-dashed rounded-lg p-1"
             : ""
         }`}>
         {children}
@@ -1043,70 +1337,30 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                               {filteredPotentialGroups[pos].length}
                             </span>
                           </h3>
-                          {filteredPotentialGroups[pos].length === 0 ? (
-                            <p className="text-gray-500 italic">
-                              Ingen potensielle
-                            </p>
-                          ) : (
-                            <div className="space-y-2">
-                              {filteredPotentialGroups[pos].map(
-                                (playerName, index) => (
-                                  <div
-                                    key={`potential-${pos}-${playerName}-${
-                                      nameToRegistrationNumber[playerName] ||
-                                      nameToRow[playerName] ||
-                                      `idx-${index}`
-                                    }`}
-                                    className="bg-white/80 border border-white/30 rounded-lg p-3 hover:bg-white/90 transition-colors">
-                                    <div className="flex items-center justify-between">
-                                      <div className="flex items-center gap-2 min-w-0">
-                                        {(nameToRegistrationNumber[
-                                          playerName
-                                        ] ||
-                                          nameToRow[playerName]) && (
-                                          <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 shrink-0">
-                                            #
-                                            {nameToRegistrationNumber[
-                                              playerName
-                                            ] ||
-                                              (nameToRow[playerName]
-                                                ? nameToRow[playerName] + 98
-                                                : "")}
-                                          </span>
-                                        )}
-                                        <span className="font-medium text-gray-800 truncate text-sm">
-                                          {playerName}
-                                        </span>
-                                      </div>
-                                      <div className="flex items-center gap-1">
-                                        <button
-                                          onClick={() =>
-                                            removeFromPotential(playerName)
-                                          }
-                                          disabled={isSaving}
-                                          className="text-red-500 hover:text-red-700 p-2 md:p-1.5 rounded-full transition-colors hover:bg-red-50 hover:scale-110 touch-manipulation min-w-[44px] min-h-[44px] md:min-w-[32px] md:min-h-[32px] flex items-center justify-center"
-                                          title="Fjern fra potensielle"
-                                          type="button">
-                                          <svg
-                                            className="w-4 h-4 md:w-4 md:h-4 pointer-events-none"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            viewBox="0 0 24 24">
-                                            <path
-                                              strokeLinecap="round"
-                                              strokeLinejoin="round"
-                                              strokeWidth={2}
-                                              d="M6 18L18 6M6 6l12 12"
-                                            />
-                                          </svg>
-                                        </button>
-                                      </div>
-                                    </div>
-                                  </div>
-                                )
-                              )}
-                            </div>
-                          )}
+                          <PotentialPositionDropZone targetPosition={pos}>
+                            {filteredPotentialGroups[pos].length === 0 ? (
+                              <p className="text-gray-500 italic min-h-[50px] flex items-center">
+                                Ingen potensielle - dra hit for å endre posisjon
+                              </p>
+                            ) : (
+                              <div className="space-y-2">
+                                {filteredPotentialGroups[pos].map(
+                                  (playerName, index) => (
+                                    <DraggablePotentialPlayer
+                                      key={`potential-${pos}-${playerName}-${
+                                        nameToRegistrationNumber[playerName] ||
+                                        nameToRow[playerName] ||
+                                        `idx-${index}`
+                                      }`}
+                                      playerName={playerName}
+                                      position={pos}
+                                      index={index}
+                                    />
+                                  )
+                                )}
+                              </div>
+                            )}
+                          </PotentialPositionDropZone>
                         </div>
                       ))}
 
@@ -1121,62 +1375,44 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                               {filteredPotentialGroups["Ukjent"].length}
                             </span>
                           </h3>
-                          <div className="space-y-2">
-                            {filteredPotentialGroups["Ukjent"].map(
-                              (playerName, index) => (
-                                <div
-                                  key={`potential-ukjent-${playerName}-${
-                                    nameToRegistrationNumber[playerName] ||
-                                    nameToRow[playerName] ||
-                                    `idx-${index}`
-                                  }`}
-                                  className="bg-white/80 border border-white/30 rounded-lg p-3 hover:bg-white/90 transition-colors">
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2 min-w-0">
-                                      {(nameToRegistrationNumber[playerName] ||
-                                        nameToRow[playerName]) && (
-                                        <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 shrink-0">
-                                          #
-                                          {nameToRegistrationNumber[
-                                            playerName
-                                          ] ||
-                                            (nameToRow[playerName]
-                                              ? nameToRow[playerName] + 98
-                                              : "")}
-                                        </span>
-                                      )}
-                                      <span className="font-medium text-gray-800 truncate text-sm">
-                                        {playerName}
-                                      </span>
-                                    </div>
-                                    <div className="flex items-center gap-1">
-                                      <button
-                                        onClick={() =>
-                                          removeFromPotential(playerName)
-                                        }
-                                        disabled={isSaving}
-                                        className="text-red-500 hover:text-red-700 p-2 md:p-1.5 rounded-full transition-colors hover:bg-red-50 hover:scale-110 touch-manipulation min-w-[44px] min-h-[44px] md:min-w-[32px] md:min-h-[32px] flex items-center justify-center"
-                                        title="Fjern fra potensielle"
-                                        type="button">
-                                        <svg
-                                          className="w-4 h-4 md:w-4 md:h-4 pointer-events-none"
-                                          fill="none"
-                                          stroke="currentColor"
-                                          viewBox="0 0 24 24">
-                                          <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={2}
-                                            d="M6 18L18 6M6 6l12 12"
-                                          />
-                                        </svg>
-                                      </button>
-                                    </div>
-                                  </div>
-                                </div>
-                              )
-                            )}
-                          </div>
+                          <PotentialPositionDropZone targetPosition="Ukjent">
+                            <div className="space-y-2">
+                              {filteredPotentialGroups["Ukjent"].map(
+                                (playerName, index) => (
+                                  <DraggablePotentialPlayer
+                                    key={`potential-ukjent-${playerName}-${
+                                      nameToRegistrationNumber[playerName] ||
+                                      nameToRow[playerName] ||
+                                      `idx-${index}`
+                                    }`}
+                                    playerName={playerName}
+                                    position="Ukjent"
+                                    index={index}
+                                  />
+                                )
+                              )}
+                            </div>
+                          </PotentialPositionDropZone>
+                        </div>
+                      )}
+
+                      {/* Always show Ukjent drop zone if not already shown */}
+                      {filteredPotentialGroups["Ukjent"].length === 0 && (
+                        <div>
+                          <h3 className="font-semibold text-sm text-white mb-3 flex items-center gap-2">
+                            <span className="w-6 h-6 bg-gray-400 rounded-full flex items-center justify-center text-white text-xs">
+                              ?
+                            </span>
+                            <span>Ukjent</span>
+                            <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">
+                              0
+                            </span>
+                          </h3>
+                          <PotentialPositionDropZone targetPosition="Ukjent">
+                            <p className="text-gray-500 italic min-h-[50px] flex items-center">
+                              Dra spillere hit for ukjent posisjon
+                            </p>
+                          </PotentialPositionDropZone>
                         </div>
                       )}
                     </div>
