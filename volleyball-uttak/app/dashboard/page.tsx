@@ -285,7 +285,7 @@ export default function Dashboard() {
         if (filters.desiredPosition !== "all") {
           const positionsLower = player.desiredPositions?.toLowerCase() || "";
           const positionLower = filters.desiredPosition.toLowerCase();
-          
+
           // Check if the desired position is mentioned in the player's preferred positions
           if (!positionsLower.includes(positionLower)) return false;
         }
@@ -293,7 +293,7 @@ export default function Dashboard() {
         // Experience filter
         if (filters.experience !== "all") {
           const experienceLower = player.experience?.toLowerCase() || "";
-          
+
           if (filters.experience === "beginner") {
             if (
               !experienceLower.includes("nybegynner") &&
@@ -301,9 +301,10 @@ export default function Dashboard() {
               !experienceLower.includes("new") &&
               !experienceLower.includes("ingen") &&
               !experienceLower.includes("none")
-            ) return false;
+            )
+              return false;
           }
-          
+
           if (filters.experience === "intermediate") {
             if (
               !experienceLower.includes("noe") &&
@@ -311,9 +312,10 @@ export default function Dashboard() {
               !experienceLower.includes("medium") &&
               !experienceLower.includes("litt") &&
               !experienceLower.includes("some")
-            ) return false;
+            )
+              return false;
           }
-          
+
           if (filters.experience === "advanced") {
             if (
               !experienceLower.includes("mye") &&
@@ -322,7 +324,8 @@ export default function Dashboard() {
               !experienceLower.includes("experienced") &&
               !experienceLower.includes("høy") &&
               !experienceLower.includes("high")
-            ) return false;
+            )
+              return false;
           }
         }
 
@@ -330,16 +333,17 @@ export default function Dashboard() {
         if (filters.ageGroup !== "all" && player.year) {
           const currentYear = new Date().getFullYear();
           const age = currentYear - parseInt(player.year.toString());
-          
+
           if (filters.ageGroup === "under20" && age >= 20) return false;
-          if (filters.ageGroup === "20-25" && (age < 20 || age > 25)) return false;
+          if (filters.ageGroup === "20-25" && (age < 20 || age > 25))
+            return false;
           if (filters.ageGroup === "over25" && age <= 25) return false;
         }
 
         // Availability filter
         if (filters.availability !== "all") {
           const availabilityLower = player.availability?.toLowerCase() || "";
-          
+
           if (filters.availability === "high") {
             if (
               !availabilityLower.includes("høy") &&
@@ -347,9 +351,10 @@ export default function Dashboard() {
               !availabilityLower.includes("mye") &&
               !availabilityLower.includes("alltid") &&
               !availabilityLower.includes("always")
-            ) return false;
+            )
+              return false;
           }
-          
+
           if (filters.availability === "medium") {
             if (
               !availabilityLower.includes("middels") &&
@@ -358,9 +363,10 @@ export default function Dashboard() {
               !availabilityLower.includes("some") &&
               !availabilityLower.includes("av og til") &&
               !availabilityLower.includes("sometimes")
-            ) return false;
+            )
+              return false;
           }
-          
+
           if (filters.availability === "low") {
             if (
               !availabilityLower.includes("lav") &&
@@ -368,7 +374,8 @@ export default function Dashboard() {
               !availabilityLower.includes("lite") &&
               !availabilityLower.includes("sjelden") &&
               !availabilityLower.includes("rarely")
-            ) return false;
+            )
+              return false;
           }
         }
 
