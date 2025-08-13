@@ -4,7 +4,7 @@ import { auth } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 
 interface NavHeaderProps {
@@ -23,6 +23,7 @@ export default function NavHeader({
 }: NavHeaderProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
 
   const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: "🏠" },
@@ -30,9 +31,21 @@ export default function NavHeader({
     { href: "/spiller-info", label: "Spiller info", icon: "👤" },
   ];
 
-  const handleLogout = () => {
-    signOut(auth);
-    setIsMobileMenuOpen(false);
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      // Clear any cached data
+      localStorage.removeItem("volleyball-selection");
+      localStorage.removeItem("volleyball-potential-groups");
+      // Redirect to login page
+      router.replace("/login");
+    } catch (error) {
+      console.error("Logout error:", error);
+      // Even if signOut fails, still redirect to login
+      router.replace("/login");
+    } finally {
+      setIsMobileMenuOpen(false);
+    }
   };
 
   return (
