@@ -17,7 +17,6 @@ import Notification from "../components/Notification";
 import PositionSection from "../components/PositionSection";
 import { StatsCardSkeleton } from "../components/SkeletonLoaders";
 import StatsCard from "../components/StatsCard";
-import TeamSelectionSection from "../components/TeamSelectionSection";
 import VirtualizedPlayerList from "../components/VirtualizedPlayerList";
 
 // Prevent double initialization in dev mode (React Strict Mode)
@@ -261,40 +260,12 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
         // Søketerm filter (debounced for better performance)
         if (debouncedSearchTerm) {
           const searchLower = debouncedSearchTerm.toLowerCase();
-          const searchTerm = debouncedSearchTerm.trim();
-          
-          // Navn match
           const nameMatch = player.name.toLowerCase().includes(searchLower);
-          
-          // Registreringsnummer match (både med og uten #)
-          let registrationMatch = false;
-          if (player.registrationNumber) {
-            const regNum = player.registrationNumber.toString();
-            registrationMatch = 
-              regNum.includes(searchTerm) || // Direkte match
-              regNum.toLowerCase().includes(searchLower) || // Case insensitive
-              searchTerm.startsWith('#') && regNum.includes(searchTerm.substring(1)) || // Med #
-              `#${regNum}`.toLowerCase().includes(searchLower); // Søk med # på nummer uten
-          }
-          
-          // Rad nummer match (fallback for eldre data + 98 offset)
-          let rowMatch = false;
-          if (player.rowNumber) {
-            const displayRowNum = (player.rowNumber + 98).toString();
-            rowMatch = 
-              displayRowNum.includes(searchTerm) ||
-              searchTerm.startsWith('#') && displayRowNum.includes(searchTerm.substring(1)) ||
-              `#${displayRowNum}`.toLowerCase().includes(searchLower);
-          }
-          
-          // Hvis søket bare er tall, prioriter registreringsnummer/rad nummer
-          const isNumericSearch = /^\d+$/.test(searchTerm);
-          if (isNumericSearch && (registrationMatch || rowMatch)) {
-            // Brukeren søker på et spesifikt nummer, så vi kan være mer streng
-            return registrationMatch || rowMatch;
-          }
-          
-          if (!nameMatch && !registrationMatch && !rowMatch) return false;
+          const rowMatch =
+            player.registrationNumber
+              ?.toString()
+              .includes(debouncedSearchTerm) || false;
+          if (!nameMatch && !rowMatch) return false;
         }
 
         // Gender filter
@@ -1032,56 +1003,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
           removeFromPotential(playerName);
           setTimeout(() => addToPotential(player), 100); // Small delay to ensure state update
         }
-      }
-
-      // Handle dragging team player to potential drop zone
-      else if (
-        activeData.type === "team-player" &&
-        overData.type === "potential-drop"
-      ) {
-        const playerName = activeData.playerName;
-        const fromPosition = activeData.fromPosition as Position;
-        console.log("Moving team player to potential:", playerName, "from", fromPosition);
-        moveFromTeamToPotential(playerName);
-      }
-
-      // Handle dragging team player to potential position drop zone
-      else if (
-        activeData.type === "team-player" &&
-        overData.type === "potential-position-drop"
-      ) {
-        const playerName = activeData.playerName;
-        const fromPosition = activeData.fromPosition as Position;
-        const targetPosition = overData.targetPosition;
-        console.log("Moving team player to specific potential position:", playerName, "from", fromPosition, "to", targetPosition);
-        moveFromTeamToPotential(playerName);
-        // Move to specific position in potential players
-        setTimeout(() => {
-          const player = players.find((p) => p.name === playerName);
-          if (player) {
-            movePotentialPlayer(playerName, targetPosition);
-          }
-        }, 100);
-      }
-
-      // Handle dragging available/potential player to team drop zone
-      else if (
-        (activeData.type === "available-player" || activeData.type === "potential-player") &&
-        overData.type === "team-drop"
-      ) {
-        const playerName = activeData.type === "available-player" ? activeData.player.name : activeData.playerName;
-        const player = players.find((p) => p.name === playerName);
-        if (player) {
-          console.log("Moving player to team (general):", playerName);
-          if (activeData.type === "potential-player") {
-            removeFromPotential(playerName);
-          }
-          // Add to team - let the user choose position via dropdown or drag to specific position
-          addToPotential(player); // For now, add to potential until position is specified
-        }
-      }
-      
-      else {
+      } else {
         console.log("Unhandled drag operation:", {
           activeType: activeData.type,
           overType: overData.type,
@@ -1391,7 +1313,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                   <div className="relative">
                     <input
                       type="text"
-                      placeholder="Søk etter navn eller registreringsnummer (f.eks. 'Ole' eller '#123')..."
+                      placeholder="Søk etter navn eller radnummer..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
@@ -1578,26 +1500,32 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                 </h2>
               </div>
               <div className="p-6 bg-white/20 backdrop-blur-sm">
-                <TeamSelectionSection
-                  positions={POSITIONS}
-                  selection={selection}
-                  positionColors={positionColors}
-                  positionIcons={positionIcons}
-                  onRemovePlayer={(pos, playerName) =>
-                    removePlayer(pos as Position, playerName)
-                  }
-                  onMovePlayer={(fromPos, playerName, toPos) =>
-                    movePlayer(
-                      fromPos as Position,
-                      playerName,
-                      toPos as Position
-                    )
-                  }
-                  onAddToPotential={moveFromTeamToPotential}
-                  isSaving={isSaving}
-                  nameToRegistrationNumber={nameToRegistrationNumber}
-                  nameToRow={nameToRow}
-                />
+                <div className="space-y-6">
+                  {POSITIONS.map((pos) => (
+                    <PositionSection
+                      key={pos}
+                      position={pos}
+                      players={selection[pos]}
+                      positionColors={positionColors}
+                      positionIcons={positionIcons}
+                      onRemovePlayer={(pos, playerName) =>
+                        removePlayer(pos as Position, playerName)
+                      }
+                      onMovePlayer={(fromPos, playerName, toPos) =>
+                        movePlayer(
+                          fromPos as Position,
+                          playerName,
+                          toPos as Position
+                        )
+                      }
+                      onAddToPotential={moveFromTeamToPotential}
+                      positions={POSITIONS}
+                      isSaving={isSaving}
+                      nameToRegistrationNumber={nameToRegistrationNumber}
+                      nameToRow={nameToRow}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
           </div>
