@@ -101,7 +101,6 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
   const [selection, setSelection] = useState<Selection>(emptySelection);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>("");
   const [filters, setFilters] = useState({
@@ -259,31 +258,6 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
     },
     []
   );
-
-  // Manual refresh
-  const handleManualRefresh = async () => {
-    setIsRefreshing(true);
-    try {
-      const response = await fetch("/api/revalidate-dashboard", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      if (response.ok) {
-        showNotification(
-          "Dashboard oppdatert! Siden laster inn nye data...",
-          "success"
-        );
-        setTimeout(() => window.location.reload(), 1500);
-      } else {
-        throw new Error("Refresh failed");
-      }
-    } catch (error) {
-      console.error("Manual refresh error:", error);
-      showNotification("Kunne ikke oppdatere dashboard", "error");
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
 
   // --- Filtering ---
   const getFilteredPlayers = useCallback(
@@ -1018,7 +992,6 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
         <NavHeader
           title="NTNUI Volleyball Uttak"
           subtitle="Lagadministrasjon"
-          refreshButton={{ onRefresh: handleManualRefresh, isRefreshing }}
         />
 
         <div className="w-full px-2 md:px-4 py-8">

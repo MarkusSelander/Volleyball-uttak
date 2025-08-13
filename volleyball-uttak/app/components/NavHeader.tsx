@@ -10,17 +10,9 @@ import { useState } from "react";
 interface NavHeaderProps {
   title: string;
   subtitle: string;
-  refreshButton?: {
-    onRefresh: () => void;
-    isRefreshing: boolean;
-  };
 }
 
-export default function NavHeader({
-  title,
-  subtitle,
-  refreshButton,
-}: NavHeaderProps) {
+export default function NavHeader({ title, subtitle }: NavHeaderProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
@@ -83,47 +75,6 @@ export default function NavHeader({
                   {item.label}
                 </Link>
               ))}
-              {refreshButton && (
-                <button
-                  onClick={refreshButton.onRefresh}
-                  disabled={refreshButton.isRefreshing}
-                  className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 disabled:bg-white/10 disabled:opacity-50 rounded-lg transition-colors"
-                  title="Oppdater dashboard med nyeste data">
-                  {refreshButton.isRefreshing ? (
-                    <>
-                      <svg
-                        className="w-4 h-4 animate-spin"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24">
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                        />
-                      </svg>
-                      <span className="hidden lg:inline">Oppdaterer...</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24">
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                        />
-                      </svg>
-                      <span className="hidden lg:inline">Oppdater</span>
-                    </>
-                  )}
-                </button>
-              )}
               <button
                 onClick={handleLogout}
                 className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors flex items-center gap-2">
@@ -226,51 +177,6 @@ export default function NavHeader({
                   </Link>
                 </li>
               ))}
-              {refreshButton && (
-                <li>
-                  <button
-                    onClick={() => {
-                      refreshButton.onRefresh();
-                      setIsMobileMenuOpen(false);
-                    }}
-                    disabled={refreshButton.isRefreshing}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-blue-600 hover:bg-blue-50 disabled:bg-gray-50 disabled:text-gray-400 rounded-lg transition-colors">
-                    {refreshButton.isRefreshing ? (
-                      <>
-                        <svg
-                          className="w-5 h-5 animate-spin"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24">
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                          />
-                        </svg>
-                        Oppdaterer...
-                      </>
-                    ) : (
-                      <>
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24">
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                          />
-                        </svg>
-                        Oppdater data
-                      </>
-                    )}
-                  </button>
-                </li>
-              )}
             </ul>
           </nav>
 
