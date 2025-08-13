@@ -1194,7 +1194,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
           </div>
 
           {/* Main grid layout */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:[grid-template-columns:repeat(14,minmax(0,1fr))] gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:[grid-template-columns:repeat(14,minmax(0,1fr))] gap-2">
             {/* Tilgjengelige spillere */}
             <div className="bg-white rounded-xl shadow-sm overflow-hidden animate-fade-in md:order-1 md:col-span-1 lg:col-span-5">
               <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-4">
