@@ -1,6 +1,7 @@
 "use client";
 
 import { DragEndEvent, useDraggable, useDroppable } from "@dnd-kit/core";
+import dynamic from "next/dynamic";
 import {
   startTransition,
   useCallback,
@@ -9,7 +10,6 @@ import {
   useRef,
   useState,
 } from "react";
-import dynamic from "next/dynamic";
 
 // Components (No SSR for VirtualizedPlayerList to avoid hydration mismatch)
 import DragDropWrapper from "../components/DragDropWrapper";
@@ -147,13 +147,25 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
 
   // --- Potential players state (single source of truth) ---
   const [potentialGroups, setPotentialGroups] = useState<PotentialGroups>({
-    Midt: [], Dia: [], Legger: [], Libero: [], Kant: [], Ukjent: [],
+    Midt: [],
+    Dia: [],
+    Legger: [],
+    Libero: [],
+    Kant: [],
+    Ukjent: [],
   });
 
   const flattenGroups = useCallback((grps: PotentialGroups) => {
-    return Array.from(new Set([
-      ...grps.Midt, ...grps.Dia, ...grps.Legger, ...grps.Libero, ...grps.Kant, ...grps.Ukjent
-    ]));
+    return Array.from(
+      new Set([
+        ...grps.Midt,
+        ...grps.Dia,
+        ...grps.Legger,
+        ...grps.Libero,
+        ...grps.Kant,
+        ...grps.Ukjent,
+      ])
+    );
   }, []);
 
   const potentialPlayers = useMemo(
@@ -166,13 +178,15 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
   const didLoadRef = useRef(false);
 
   useEffect(() => {
-    if (!hydrated) return;                  // wait until client
-    if (didLoadRef.current) return;         // only once per mount
+    if (!hydrated) return; // wait until client
+    if (didLoadRef.current) return; // only once per mount
     didLoadRef.current = true;
 
     try {
       const savedSelection = localStorage.getItem("volleyball-selection");
-      const savedPotentialGroups = localStorage.getItem("volleyball-potential-groups");
+      const savedPotentialGroups = localStorage.getItem(
+        "volleyball-potential-groups"
+      );
       const legacyFlat = localStorage.getItem("volleyball-potential"); // backward compat
 
       if (savedSelection) {
@@ -185,19 +199,32 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
         setPotentialGroups(groups);
       } else if (legacyFlat) {
         const names: string[] = JSON.parse(legacyFlat);
-        const groups: PotentialGroups = { Midt: [], Dia: [], Legger: [], Libero: [], Kant: [], Ukjent: [] };
+        const groups: PotentialGroups = {
+          Midt: [],
+          Dia: [],
+          Legger: [],
+          Libero: [],
+          Kant: [],
+          Ukjent: [],
+        };
         const seen = new Set<string>();
         for (const name of names) {
           if (seen.has(name)) continue;
           seen.add(name);
           const p = players.find((pp) => pp.name === name);
-          const mapped = p?.desiredPositions ? mapPositions(p.desiredPositions) : [];
+          const mapped = p?.desiredPositions
+            ? mapPositions(p.desiredPositions)
+            : [];
           const primary = (mapped[0] as Position) ?? undefined;
-          if (primary) groups[primary].push(name); else groups.Ukjent.push(name);
+          if (primary) groups[primary].push(name);
+          else groups.Ukjent.push(name);
         }
         setPotentialGroups(groups);
         // Migrate to grouped storage
-        localStorage.setItem("volleyball-potential-groups", JSON.stringify(groups));
+        localStorage.setItem(
+          "volleyball-potential-groups",
+          JSON.stringify(groups)
+        );
         localStorage.removeItem("volleyball-potential");
       }
     } catch (error) {
@@ -210,18 +237,28 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
     if (!hydrated) return;
     try {
       localStorage.setItem("volleyball-selection", JSON.stringify(selection));
-      localStorage.setItem("volleyball-potential-groups", JSON.stringify(potentialGroups));
+      localStorage.setItem(
+        "volleyball-potential-groups",
+        JSON.stringify(potentialGroups)
+      );
     } catch (error) {
       console.error("Error saving to localStorage:", error);
     }
   }, [selection, potentialGroups, hydrated]);
 
-  const showNotification = useCallback((message: string, type: "success" | "error" | "info" | "warning") => {
-    startTransition(() => setNotification({ message, type, isVisible: true }));
-    setTimeout(() => {
-      startTransition(() => setNotification((prev) => ({ ...prev, isVisible: false })));
-    }, 3000);
-  }, []);
+  const showNotification = useCallback(
+    (message: string, type: "success" | "error" | "info" | "warning") => {
+      startTransition(() =>
+        setNotification({ message, type, isVisible: true })
+      );
+      setTimeout(() => {
+        startTransition(() =>
+          setNotification((prev) => ({ ...prev, isVisible: false }))
+        );
+      }, 3000);
+    },
+    []
+  );
 
   // Manual refresh
   const handleManualRefresh = async () => {
@@ -232,7 +269,10 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
         headers: { "Content-Type": "application/json" },
       });
       if (response.ok) {
-        showNotification("Dashboard oppdatert! Siden laster inn nye data...", "success");
+        showNotification(
+          "Dashboard oppdatert! Siden laster inn nye data...",
+          "success"
+        );
         setTimeout(() => window.location.reload(), 1500);
       } else {
         throw new Error("Refresh failed");
@@ -252,25 +292,35 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
         if (debouncedSearchTerm) {
           const searchLower = debouncedSearchTerm.toLowerCase();
           const nameMatch = player.name.toLowerCase().includes(searchLower);
-          const rowMatch = player.registrationNumber?.toString().includes(debouncedSearchTerm) || false;
-          if (!nameMatch && !rowMatch) return false;
+          const numberMatch =
+            player.registrationNumber
+              ?.toString()
+              .includes(debouncedSearchTerm) ||
+            (player.rowNumber &&
+              (player.rowNumber + 98).toString().includes(debouncedSearchTerm));
+          if (!nameMatch && !numberMatch) return false;
         }
 
         if (filters.gender !== "all") {
           const genderLower = player.gender?.toLowerCase().trim() || "";
-          if (filters.gender === "male" && genderLower !== "mann / male") return false;
-          if (filters.gender === "female" && genderLower !== "kvinne / female") return false;
+          if (filters.gender === "male" && genderLower !== "mann / male")
+            return false;
+          if (filters.gender === "female" && genderLower !== "kvinne / female")
+            return false;
         }
 
         if (filters.isStudent !== "all") {
           const studentLower = player.isStudent?.toLowerCase() || "";
-          if (filters.isStudent === "yes" && !/^(ja|yes|y)/.test(studentLower)) return false;
-          if (filters.isStudent === "no" && !/^(nei|no|n)/.test(studentLower)) return false;
+          if (filters.isStudent === "yes" && !/^(ja|yes|y)/.test(studentLower))
+            return false;
+          if (filters.isStudent === "no" && !/^(nei|no|n)/.test(studentLower))
+            return false;
         }
 
         if (filters.previousTeam !== "all") {
           const teamLower = player.previousTeam?.toLowerCase() || "";
-          const playedBefore = teamLower.includes("ntnui") ||
+          const playedBefore =
+            teamLower.includes("ntnui") ||
             /^(ja|yes|y)/.test(teamLower) ||
             (teamLower.length > 0 && !/^(nei|no|n)/.test(teamLower));
           if (filters.previousTeam === "yes" && !playedBefore) return false;
@@ -281,25 +331,36 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
           const levelLower = player.desiredLevel?.toLowerCase() || "";
           const levelNumber = player.desiredLevel?.toString() || "";
           const want = filters.desiredLevel;
-          const ok = levelLower.includes(want) ||
-            (want === "1" && (levelLower.includes("første") || levelLower.includes("first"))) ||
-            (want === "2" && (levelLower.includes("andre") || levelLower.includes("second"))) ||
-            (want === "3" && (levelLower.includes("tredje") || levelLower.includes("third"))) ||
-            (want === "4" && (levelLower.includes("fjerde") || levelLower.includes("fourth"))) ||
+          const ok =
+            levelLower.includes(want) ||
+            (want === "1" &&
+              (levelLower.includes("første") ||
+                levelLower.includes("first"))) ||
+            (want === "2" &&
+              (levelLower.includes("andre") ||
+                levelLower.includes("second"))) ||
+            (want === "3" &&
+              (levelLower.includes("tredje") ||
+                levelLower.includes("third"))) ||
+            (want === "4" &&
+              (levelLower.includes("fjerde") ||
+                levelLower.includes("fourth"))) ||
             levelNumber.includes(want);
           if (!ok) return false;
         }
 
         if (filters.desiredPosition !== "all") {
           const positionsLower = player.desiredPositions?.toLowerCase() || "";
-          if (!positionsLower.includes(filters.desiredPosition.toLowerCase())) return false;
+          if (!positionsLower.includes(filters.desiredPosition.toLowerCase()))
+            return false;
         }
 
         if (filters.ageGroup !== "all" && player.year) {
           const currentYear = new Date().getFullYear();
           const age = currentYear - parseInt(player.year.toString());
           if (filters.ageGroup === "under20" && age >= 20) return false;
-          if (filters.ageGroup === "20-25" && (age < 20 || age > 25)) return false;
+          if (filters.ageGroup === "20-25" && (age < 20 || age > 25))
+            return false;
           if (filters.ageGroup === "over25" && age <= 25) return false;
         }
 
@@ -311,7 +372,8 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
   // --- Lookup maps ---
   const nameToRegistrationNumber = useMemo(() => {
     const m: Record<string, string | undefined> = {};
-    for (const p of players) if (p.registrationNumber) m[p.name] = p.registrationNumber;
+    for (const p of players)
+      if (p.registrationNumber) m[p.name] = p.registrationNumber;
     return m;
   }, [players]);
 
@@ -325,7 +387,8 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
   const updateSelection = useCallback(
     async (pos: Position, player: Player) => {
       const newSel: Selection = { ...selection };
-      for (const p of POSITIONS) newSel[p] = newSel[p].filter((n) => n !== player.name);
+      for (const p of POSITIONS)
+        newSel[p] = newSel[p].filter((n) => n !== player.name);
       newSel[pos] = [...newSel[pos], player.name];
 
       startTransition(() => {
@@ -362,9 +425,13 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
       try {
         const newSel: Selection = { ...selection };
         newSel[fromPos] = newSel[fromPos].filter((n) => n !== playerName);
-        if (!newSel[toPos].includes(playerName)) newSel[toPos] = [...newSel[toPos], playerName];
+        if (!newSel[toPos].includes(playerName))
+          newSel[toPos] = [...newSel[toPos], playerName];
         startTransition(() => setSelection(newSel));
-        showNotification(`${playerName} flyttet fra ${fromPos} til ${toPos}`, "success");
+        showNotification(
+          `${playerName} flyttet fra ${fromPos} til ${toPos}`,
+          "success"
+        );
       } catch (error) {
         console.error("Error moving player:", error);
         showNotification("Feil ved flytting av spiller", "error");
@@ -376,7 +443,10 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
   );
 
   // --- Derived sets ---
-  const selectedPlayerNames = useMemo(() => Object.values(selection).flat(), [selection]);
+  const selectedPlayerNames = useMemo(
+    () => Object.values(selection).flat(),
+    [selection]
+  );
   const allUnavailablePlayerNames = useMemo(
     () => [...selectedPlayerNames, ...potentialPlayers],
     [selectedPlayerNames, potentialPlayers]
@@ -439,8 +509,11 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
   // --- Potential groups mutators ---
   const addToPotential = useCallback(
     async (player: Player) => {
-      const mapped = player.desiredPositions ? mapPositions(player.desiredPositions) : [];
-      const target: Position | "Ukjent" = mapped.length > 0 ? (mapped[0] as Position) : "Ukjent";
+      const mapped = player.desiredPositions
+        ? mapPositions(player.desiredPositions)
+        : [];
+      const target: Position | "Ukjent" =
+        mapped.length > 0 ? (mapped[0] as Position) : "Ukjent";
 
       startTransition(() => {
         setPotentialGroups((prev) => {
@@ -458,7 +531,10 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
       });
 
       const suffix = target !== "Ukjent" ? ` (${target})` : "";
-      showNotification(`${player.name} lagt til i potensielle${suffix}`, "success");
+      showNotification(
+        `${player.name} lagt til i potensielle${suffix}`,
+        "success"
+      );
     },
     [mapPositions, showNotification]
   );
@@ -474,12 +550,16 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
       startTransition(() => {
         setSelection((prevSel) => {
           const newSel: Selection = { ...prevSel };
-          for (const pos of POSITIONS) newSel[pos] = newSel[pos].filter((n) => n !== playerName);
+          for (const pos of POSITIONS)
+            newSel[pos] = newSel[pos].filter((n) => n !== playerName);
           return newSel;
         });
 
-        const mapped = player.desiredPositions ? mapPositions(player.desiredPositions) : [];
-        const target: Position | "Ukjent" = mapped.length > 0 ? (mapped[0] as Position) : "Ukjent";
+        const mapped = player.desiredPositions
+          ? mapPositions(player.desiredPositions)
+          : [];
+        const target: Position | "Ukjent" =
+          mapped.length > 0 ? (mapped[0] as Position) : "Ukjent";
 
         setPotentialGroups((prev) => {
           const next: PotentialGroups = {
@@ -495,9 +575,17 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
         });
       });
 
-      const mapped = player.desiredPositions ? mapPositions(player.desiredPositions) : [];
-      const target: Position | "Ukjent" = mapped.length > 0 ? (mapped[0] as Position) : "Ukjent";
-      showNotification(`${playerName} flyttet til potensielle spillere${target !== "Ukjent" ? ` (${target})` : ""}`, "success");
+      const mapped = player.desiredPositions
+        ? mapPositions(player.desiredPositions)
+        : [];
+      const target: Position | "Ukjent" =
+        mapped.length > 0 ? (mapped[0] as Position) : "Ukjent";
+      showNotification(
+        `${playerName} flyttet til potensielle spillere${
+          target !== "Ukjent" ? ` (${target})` : ""
+        }`,
+        "success"
+      );
     },
     [players, mapPositions, showNotification]
   );
@@ -514,7 +602,10 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
           Ukjent: prev.Ukjent.filter((n) => n !== playerName),
         }));
       });
-      showNotification(`${playerName} fjernet fra potensielle spillere`, "info");
+      showNotification(
+        `${playerName} fjernet fra potensielle spillere`,
+        "info"
+      );
     },
     [showNotification]
   );
@@ -535,19 +626,29 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
           return next;
         });
       });
-      showNotification(`${playerName} flyttet${targetPosition !== "Ukjent" ? ` til ${targetPosition}` : " til Ukjent"}`, "success");
+      showNotification(
+        `${playerName} flyttet${
+          targetPosition !== "Ukjent" ? ` til ${targetPosition}` : " til Ukjent"
+        }`,
+        "success"
+      );
     },
     [showNotification]
   );
 
   // --- DnD drop zones helpers ---
   const PotentialDropZone = ({ children }: { children: React.ReactNode }) => {
-    const { setNodeRef, isOver } = useDroppable({ id: "potential-drop", data: { type: "potential-drop" } });
+    const { setNodeRef, isOver } = useDroppable({
+      id: "potential-drop",
+      data: { type: "potential-drop" },
+    });
     return (
       <div
         ref={setNodeRef}
         className={`min-h-[100px] transition-all duration-200 ${
-          isOver ? "bg-orange-100 border-2 border-orange-300 border-dashed rounded-lg" : ""
+          isOver
+            ? "bg-orange-100 border-2 border-orange-300 border-dashed rounded-lg"
+            : ""
         }`}>
         {children}
       </div>
@@ -555,12 +656,17 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
   };
 
   const TeamDropZone = ({ children }: { children: React.ReactNode }) => {
-    const { setNodeRef, isOver } = useDroppable({ id: "team-drop", data: { type: "team-drop" } });
+    const { setNodeRef, isOver } = useDroppable({
+      id: "team-drop",
+      data: { type: "team-drop" },
+    });
     return (
       <div
         ref={setNodeRef}
         className={`min-h-[100px] transition-all duration-200 ${
-          isOver ? "bg-purple-100 border-2 border-purple-300 border-dashed rounded-lg" : ""
+          isOver
+            ? "bg-purple-100 border-2 border-purple-300 border-dashed rounded-lg"
+            : ""
         }`}>
         {children}
       </div>
@@ -574,12 +680,17 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
     children: React.ReactNode;
     targetPosition: Position;
   }) => {
-    const { setNodeRef, isOver } = useDroppable({ id: `team-position-${targetPosition}`, data: { type: "position", position: targetPosition } });
+    const { setNodeRef, isOver } = useDroppable({
+      id: `team-position-${targetPosition}`,
+      data: { type: "position", position: targetPosition },
+    });
     return (
       <div
         ref={setNodeRef}
         className={`min-h-[50px] transition-all duration-200 ${
-          isOver ? "bg-pink-100 border-2 border-pink-300 border-dashed rounded-lg p-1" : ""
+          isOver
+            ? "bg-pink-100 border-2 border-pink-300 border-dashed rounded-lg p-1"
+            : ""
         }`}>
         {children}
       </div>
@@ -593,12 +704,17 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
     children: React.ReactNode;
     targetPosition: Position | "Ukjent";
   }) => {
-    const { setNodeRef, isOver } = useDroppable({ id: `potential-position-${targetPosition}`, data: { type: "potential-position-drop", targetPosition } });
+    const { setNodeRef, isOver } = useDroppable({
+      id: `potential-position-${targetPosition}`,
+      data: { type: "potential-position-drop", targetPosition },
+    });
     return (
       <div
         ref={setNodeRef}
         className={`min-h-[50px] transition-all duration-200 ${
-          isOver ? "bg-yellow-100 border-2 border-yellow-300 border-dashed rounded-lg p-1" : ""
+          isOver
+            ? "bg-yellow-100 border-2 border-yellow-300 border-dashed rounded-lg p-1"
+            : ""
         }`}>
         {children}
       </div>
@@ -614,31 +730,53 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
     if (!activeData || !overData) return;
 
     try {
-      if (activeData.type === "available-player" && overData.type === "position") {
+      if (
+        activeData.type === "available-player" &&
+        overData.type === "position"
+      ) {
         const player = activeData.player as Player;
         const targetPosition = overData.position as Position;
         updateSelection(targetPosition, player);
-      } else if (activeData.type === "available-player" && overData.type === "potential-drop") {
+      } else if (
+        activeData.type === "available-player" &&
+        overData.type === "potential-drop"
+      ) {
         const player = activeData.player as Player;
         addToPotential(player);
-      } else if (activeData.type === "team-player" && overData.type === "position") {
+      } else if (
+        activeData.type === "team-player" &&
+        overData.type === "position"
+      ) {
         const playerName = activeData.playerName as string;
         const fromPosition = activeData.fromPosition as Position;
         const toPosition = overData.position as Position;
         movePlayer(fromPosition, playerName, toPosition);
-      } else if (activeData.type === "team-player" && overData.type === "available-drop") {
+      } else if (
+        activeData.type === "team-player" &&
+        overData.type === "available-drop"
+      ) {
         const playerName = activeData.playerName as string;
         const fromPosition = activeData.fromPosition as Position;
         removePlayer(fromPosition, playerName);
-      } else if (activeData.type === "team-player" && overData.type === "potential-drop") {
+      } else if (
+        activeData.type === "team-player" &&
+        overData.type === "potential-drop"
+      ) {
         const playerName = activeData.playerName as string;
         moveFromTeamToPotential(playerName);
-      } else if (activeData.type === "team-player" && overData.type === "potential-position-drop") {
+      } else if (
+        activeData.type === "team-player" &&
+        overData.type === "potential-position-drop"
+      ) {
         const playerName = activeData.playerName as string;
         const targetPosition = overData.targetPosition as Position | "Ukjent";
         moveFromTeamToPotential(playerName);
-        if (targetPosition !== "Ukjent") movePotentialPlayer(playerName, targetPosition);
-      } else if (activeData.type === "potential-player" && overData.type === "position") {
+        if (targetPosition !== "Ukjent")
+          movePotentialPlayer(playerName, targetPosition);
+      } else if (
+        activeData.type === "potential-player" &&
+        overData.type === "position"
+      ) {
         const playerName = activeData.playerName as string;
         const targetPosition = overData.position as Position;
         const player = players.find((p) => p.name === playerName);
@@ -646,26 +784,45 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
           removeFromPotential(playerName);
           updateSelection(targetPosition, player);
         }
-      } else if (activeData.type === "potential-player" && overData.type === "available-drop") {
+      } else if (
+        activeData.type === "potential-player" &&
+        overData.type === "available-drop"
+      ) {
         const playerName = activeData.playerName as string;
         removeFromPotential(playerName);
-      } else if (activeData.type === "potential-player" && overData.type === "potential-position-drop") {
+      } else if (
+        activeData.type === "potential-player" &&
+        overData.type === "potential-position-drop"
+      ) {
         const playerName = activeData.playerName as string;
         const targetPosition = overData.targetPosition as Position | "Ukjent";
         const fromPosition = activeData.fromPosition;
-        if (fromPosition !== targetPosition) movePotentialPlayer(playerName, targetPosition);
-      } else if (activeData.type === "available-player" && overData.type === "team-drop") {
+        if (fromPosition !== targetPosition)
+          movePotentialPlayer(playerName, targetPosition);
+      } else if (
+        activeData.type === "available-player" &&
+        overData.type === "team-drop"
+      ) {
         const player = activeData.player as Player;
-        const mapped = player.desiredPositions ? mapPositions(player.desiredPositions) : [];
-        const targetPosition: Position = mapped.length > 0 ? (mapped[0] as Position) : "Midt";
+        const mapped = player.desiredPositions
+          ? mapPositions(player.desiredPositions)
+          : [];
+        const targetPosition: Position =
+          mapped.length > 0 ? (mapped[0] as Position) : "Midt";
         updateSelection(targetPosition, player);
-      } else if (activeData.type === "potential-player" && overData.type === "team-drop") {
+      } else if (
+        activeData.type === "potential-player" &&
+        overData.type === "team-drop"
+      ) {
         const playerName = activeData.playerName as string;
         const player = players.find((p) => p.name === playerName);
         if (player) {
           removeFromPotential(playerName);
-          const mapped = player.desiredPositions ? mapPositions(player.desiredPositions) : [];
-          const targetPosition: Position = mapped.length > 0 ? (mapped[0] as Position) : "Midt";
+          const mapped = player.desiredPositions
+            ? mapPositions(player.desiredPositions)
+            : [];
+          const targetPosition: Position =
+            mapped.length > 0 ? (mapped[0] as Position) : "Midt";
           updateSelection(targetPosition, player);
         }
       }
@@ -690,19 +847,24 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
     position: Position;
     index: number;
   }) => {
-    const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-      id: `team-${position}-${playerName}-${index}`,
-      data: { type: "team-player", playerName, fromPosition: position },
-    });
+    const { attributes, listeners, setNodeRef, transform, isDragging } =
+      useDraggable({
+        id: `team-${position}-${playerName}-${index}`,
+        data: { type: "team-player", playerName, fromPosition: position },
+      });
 
-    const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
+    const style = transform
+      ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
+      : undefined;
 
     return (
       <div
         ref={setNodeRef}
         style={style}
         className={`bg-white/80 border border-white/30 rounded-lg p-3 hover:bg-white/90 transition-colors ${
-          isDragging ? "opacity-70 shadow-xl z-50 bg-white border-2 border-blue-300" : ""
+          isDragging
+            ? "opacity-70 shadow-xl z-50 bg-white border-2 border-blue-300"
+            : ""
         }`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 min-w-0">
@@ -714,16 +876,24 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
               {...attributes}
               {...listeners}
               onClick={(e) => e.stopPropagation()}>
-              <svg className="w-4 h-4 pointer-events-none" viewBox="0 0 20 20" fill="currentColor">
+              <svg
+                className="w-4 h-4 pointer-events-none"
+                viewBox="0 0 20 20"
+                fill="currentColor">
                 <path d="M7 4a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 8a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 12a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 16a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2z" />
               </svg>
             </button>
-            {(nameToRegistrationNumber[playerName] || nameToRow[playerName]) && (
+            {(nameToRegistrationNumber[playerName] ||
+              nameToRow[playerName]) && (
               <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 shrink-0">
-                #{nameToRegistrationNumber[playerName] || (nameToRow[playerName] ? nameToRow[playerName] + 98 : "")}
+                #
+                {nameToRegistrationNumber[playerName] ||
+                  (nameToRow[playerName] ? nameToRow[playerName] + 98 : "")}
               </span>
             )}
-            <span className="font-medium text-gray-800 truncate text-sm">{playerName}</span>
+            <span className="font-medium text-gray-800 truncate text-sm">
+              {playerName}
+            </span>
           </div>
           <div className="flex items-center gap-1">
             <button
@@ -740,8 +910,17 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
               className="text-red-500 hover:text-red-700 p-2 md:p-1.5 rounded-full transition-colors hover:bg-red-50 hover:scale-110 touch-manipulation min-w-[44px] min-h-[44px] md:min-w-[32px] md:min-h-[32px] flex items-center justify-center"
               title="Fjern fra lag"
               type="button">
-              <svg className="w-4 h-4 md:w-4 md:h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <svg
+                className="w-4 h-4 md:w-4 md:h-4 pointer-events-none"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
               </svg>
             </button>
           </div>
@@ -759,19 +938,24 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
     position: string;
     index: number;
   }) => {
-    const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-      id: `potential-${position}-${playerName}-${index}`,
-      data: { type: "potential-player", playerName, fromPosition: position },
-    });
+    const { attributes, listeners, setNodeRef, transform, isDragging } =
+      useDraggable({
+        id: `potential-${position}-${playerName}-${index}`,
+        data: { type: "potential-player", playerName, fromPosition: position },
+      });
 
-    const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
+    const style = transform
+      ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
+      : undefined;
 
     return (
       <div
         ref={setNodeRef}
         style={style}
         className={`bg-white/80 border border-white/30 rounded-lg p-3 hover:bg-white/90 transition-colors ${
-          isDragging ? "opacity-70 shadow-xl z-50 bg-white border-2 border-blue-300" : ""
+          isDragging
+            ? "opacity-70 shadow-xl z-50 bg-white border-2 border-blue-300"
+            : ""
         }`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 min-w-0">
@@ -783,16 +967,24 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
               {...attributes}
               {...listeners}
               onClick={(e) => e.stopPropagation()}>
-              <svg className="w-4 h-4 pointer-events-none" viewBox="0 0 20 20" fill="currentColor">
+              <svg
+                className="w-4 h-4 pointer-events-none"
+                viewBox="0 0 20 20"
+                fill="currentColor">
                 <path d="M7 4a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 8a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 12a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 16a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2z" />
               </svg>
             </button>
-            {(nameToRegistrationNumber[playerName] || nameToRow[playerName]) && (
+            {(nameToRegistrationNumber[playerName] ||
+              nameToRow[playerName]) && (
               <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 shrink-0">
-                #{nameToRegistrationNumber[playerName] || (nameToRow[playerName] ? nameToRow[playerName] + 98 : "")}
+                #
+                {nameToRegistrationNumber[playerName] ||
+                  (nameToRow[playerName] ? nameToRow[playerName] + 98 : "")}
               </span>
             )}
-            <span className="font-medium text-gray-800 truncate text-sm">{playerName}</span>
+            <span className="font-medium text-gray-800 truncate text-sm">
+              {playerName}
+            </span>
           </div>
           <div className="flex items-center gap-1">
             <button
@@ -801,8 +993,17 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
               className="text-red-500 hover:text-red-700 p-2 md:p-1.5 rounded-full transition-colors hover:bg-red-50 hover:scale-110 touch-manipulation min-w-[44px] min-h-[44px] md:min-w-[32px] md:min-h-[32px] flex items-center justify-center"
               title="Fjern fra potensielle"
               type="button">
-              <svg className="w-4 h-4 md:w-4 md:h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <svg
+                className="w-4 h-4 md:w-4 md:h-4 pointer-events-none"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
               </svg>
             </button>
           </div>
@@ -832,10 +1033,30 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
               </>
             ) : (
               <>
-                <StatsCard title="Totalt påmeldt" value={totalRegistrations} icon="👥" color="bg-blue-100" />
-                <StatsCard title="Valgt til lag" value={selectedPlayerNames.length} icon="✅" color="bg-green-100" />
-                <StatsCard title="Tilgjengelige" value={available.length} icon="⏳" color="bg-yellow-100" />
-                <StatsCard title="Potensielle" value={potentialPlayers.length} icon="⭐" color="bg-orange-100" />
+                <StatsCard
+                  title="Totalt påmeldt"
+                  value={totalRegistrations}
+                  icon="👥"
+                  color="bg-blue-100"
+                />
+                <StatsCard
+                  title="Valgt til lag"
+                  value={selectedPlayerNames.length}
+                  icon="✅"
+                  color="bg-green-100"
+                />
+                <StatsCard
+                  title="Tilgjengelige"
+                  value={available.length}
+                  icon="⏳"
+                  color="bg-yellow-100"
+                />
+                <StatsCard
+                  title="Potensielle"
+                  value={potentialPlayers.length}
+                  icon="⭐"
+                  color="bg-orange-100"
+                />
               </>
             )}
           </div>
@@ -843,14 +1064,22 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
           {/* Filters */}
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
             <div className="flex flex-wrap items-center gap-4">
-              <h3 className="font-medium text-gray-800 dark:text-gray-200 mr-2">Filtrer spillere:</h3>
+              <h3 className="font-medium text-gray-800 dark:text-gray-200 mr-2">
+                Filtrer spillere:
+              </h3>
 
               <div className="flex items-center gap-2">
-                <label htmlFor="gender-filter" className="text-sm font-medium text-gray-700 dark:text-gray-300">Kjønn:</label>
+                <label
+                  htmlFor="gender-filter"
+                  className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Kjønn:
+                </label>
                 <select
                   id="gender-filter"
                   value={filters.gender}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, gender: e.target.value }))}
+                  onChange={(e) =>
+                    setFilters((prev) => ({ ...prev, gender: e.target.value }))
+                  }
                   className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                   <option value="all">Alle</option>
                   <option value="male">Menn</option>
@@ -859,11 +1088,20 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
               </div>
 
               <div className="flex items-center gap-2">
-                <label htmlFor="student-filter" className="text-sm font-medium text-gray-700 dark:text-gray-300">Student:</label>
+                <label
+                  htmlFor="student-filter"
+                  className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Student:
+                </label>
                 <select
                   id="student-filter"
                   value={filters.isStudent}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, isStudent: e.target.value }))}
+                  onChange={(e) =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      isStudent: e.target.value,
+                    }))
+                  }
                   className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                   <option value="all">Alle</option>
                   <option value="yes">Ja</option>
@@ -872,11 +1110,20 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
               </div>
 
               <div className="flex items-center gap-2">
-                <label htmlFor="previous-team-filter" className="text-sm font-medium text-gray-700 dark:text-gray-300">NTNUI i fjor:</label>
+                <label
+                  htmlFor="previous-team-filter"
+                  className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  NTNUI i fjor:
+                </label>
                 <select
                   id="previous-team-filter"
                   value={filters.previousTeam}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, previousTeam: e.target.value }))}
+                  onChange={(e) =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      previousTeam: e.target.value,
+                    }))
+                  }
                   className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                   <option value="all">Alle</option>
                   <option value="yes">Ja</option>
@@ -885,11 +1132,20 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
               </div>
 
               <div className="flex items-center gap-2">
-                <label htmlFor="desired-level-filter" className="text-sm font-medium text-gray-700 dark:text-gray-300">Divisjon:</label>
+                <label
+                  htmlFor="desired-level-filter"
+                  className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Divisjon:
+                </label>
                 <select
                   id="desired-level-filter"
                   value={filters.desiredLevel}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, desiredLevel: e.target.value }))}
+                  onChange={(e) =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      desiredLevel: e.target.value,
+                    }))
+                  }
                   className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                   <option value="all">Alle</option>
                   <option value="1">1. div</option>
@@ -900,11 +1156,20 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
               </div>
 
               <div className="flex items-center gap-2">
-                <label htmlFor="desired-position-filter" className="text-sm font-medium text-gray-700 dark:text-gray-300">Posisjon:</label>
+                <label
+                  htmlFor="desired-position-filter"
+                  className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Posisjon:
+                </label>
                 <select
                   id="desired-position-filter"
                   value={filters.desiredPosition}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, desiredPosition: e.target.value }))}
+                  onChange={(e) =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      desiredPosition: e.target.value,
+                    }))
+                  }
                   className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                   <option value="all">Alle</option>
                   <option value="libero">Libero</option>
@@ -916,11 +1181,20 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
               </div>
 
               <div className="flex items-center gap-2">
-                <label htmlFor="age-group-filter" className="text-sm font-medium text-gray-700 dark:text-gray-300">Alder:</label>
+                <label
+                  htmlFor="age-group-filter"
+                  className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Alder:
+                </label>
                 <select
                   id="age-group-filter"
                   value={filters.ageGroup}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, ageGroup: e.target.value }))}
+                  onChange={(e) =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      ageGroup: e.target.value,
+                    }))
+                  }
                   className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                   <option value="all">Alle</option>
                   <option value="under20">&lt;20</option>
@@ -967,24 +1241,39 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
                     />
-                    <svg className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    <svg
+                      className="absolute left-3 top-2.5 h-5 w-5 text-gray-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                      />
                     </svg>
                   </div>
                   {searchTerm && (
                     <p className="text-sm text-gray-600 mt-2">
-                      {debouncedSearchTerm === searchTerm ? `Viser ${available.length} av ${available.length} spillere` : `Søker...`}
+                      {debouncedSearchTerm === searchTerm
+                        ? `Viser ${available.length} av ${available.length} spillere`
+                        : `Søker...`}
                     </p>
                   )}
                 </div>
 
                 {/* Virtualized list (No SSR) */}
-                <div className="player-card-container mt-2 max-h-[100vh] overflow-y-auto overflow-x-hidden pr-2" style={{ WebkitOverflowScrolling: "touch" }}>
+                <div
+                  className="player-card-container mt-2 max-h-[100vh] overflow-y-auto overflow-x-hidden pr-2"
+                  style={{ WebkitOverflowScrolling: "touch" }}>
                   <VirtualizedPlayerListNoSSR
                     players={available}
                     positions={POSITIONS}
                     positionIcons={positionIcons}
-                    onSelectPosition={(pos: string, player: { name: string }) => updateSelection(pos as Position, player as Player)}
+                    onSelectPosition={(pos: string, player: { name: string }) =>
+                      updateSelection(pos as Position, player as Player)
+                    }
                     onAddPotential={(p) => addToPotential(p as Player)}
                     isSaving={isSaving}
                     batchSize={20}
@@ -994,7 +1283,9 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
             </div>
 
             {/* Potensielle spillere */}
-            <div className="bg-gradient-to-br from-orange-500 via-orange-400 to-yellow-500 rounded-xl shadow-sm overflow-hidden animate-fade-in md:order-3 md:col-span-2 lg:col-span-4" style={{ animationDelay: "0.1s" }}>
+            <div
+              className="bg-gradient-to-br from-orange-500 via-orange-400 to-yellow-500 rounded-xl shadow-sm overflow-hidden animate-fade-in md:order-3 md:col-span-2 lg:col-span-4"
+              style={{ animationDelay: "0.1s" }}>
               <div className="bg-black/10 px-6 py-4">
                 <h2 className="text-lg font-semibold text-white flex items-center gap-2">
                   <span>⭐</span>
@@ -1006,33 +1297,48 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                   {potentialPlayers.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
                       <span className="text-4xl mb-4 block">⭐</span>
-                      <p className="text-gray-700">Ingen potensielle spillere valgt</p>
-                      <p className="text-sm text-gray-500 mt-2">Dra spillere hit eller klikk ⭐ for å legge til</p>
+                      <p className="text-gray-700">
+                        Ingen potensielle spillere valgt
+                      </p>
+                      <p className="text-sm text-gray-500 mt-2">
+                        Dra spillere hit eller klikk ⭐ for å legge til
+                      </p>
                     </div>
                   ) : (
                     <div className="space-y-6">
                       {POSITIONS.map((pos) => (
                         <div key={pos}>
                           <h3 className="font-semibold text-sm text-white mb-3 flex items-center gap-2">
-                            <span className={`w-6 h-6 ${positionColors[pos]} rounded-full flex items-center justify-center text-white text-xs`}>
+                            <span
+                              className={`w-6 h-6 ${positionColors[pos]} rounded-full flex items-center justify-center text-white text-xs`}>
                               {positionIcons[pos]}
                             </span>
                             <span>{pos}</span>
-                            <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">{filteredPotentialGroups[pos].length}</span>
+                            <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">
+                              {filteredPotentialGroups[pos].length}
+                            </span>
                           </h3>
                           <PotentialPositionDropZone targetPosition={pos}>
                             {filteredPotentialGroups[pos].length === 0 ? (
-                              <p className="text-gray-50/90 italic min-h-[50px] flex items-center">Ingen potensielle - dra hit for å endre posisjon</p>
+                              <p className="text-gray-50/90 italic min-h-[50px] flex items-center">
+                                Ingen potensielle - dra hit for å endre posisjon
+                              </p>
                             ) : (
                               <div className="space-y-2">
-                                {filteredPotentialGroups[pos].map((playerName, index) => (
-                                  <DraggablePotentialPlayer
-                                    key={`potential-${pos}-${playerName}-${nameToRegistrationNumber[playerName] || nameToRow[playerName] || `idx-${index}`}`}
-                                    playerName={playerName}
-                                    position={pos}
-                                    index={index}
-                                  />
-                                ))}
+                                {filteredPotentialGroups[pos].map(
+                                  (playerName, index) => (
+                                    <DraggablePotentialPlayer
+                                      key={`potential-${pos}-${playerName}-${
+                                        nameToRegistrationNumber[playerName] ||
+                                        nameToRow[playerName] ||
+                                        `idx-${index}`
+                                      }`}
+                                      playerName={playerName}
+                                      position={pos}
+                                      index={index}
+                                    />
+                                  )
+                                )}
                               </div>
                             )}
                           </PotentialPositionDropZone>
@@ -1042,7 +1348,9 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                       {filteredPotentialGroups["Ukjent"].length > 0 && (
                         <div>
                           <h3 className="font-semibold text-sm text-white mb-3 flex items-center gap-2">
-                            <span className="w-6 h-6 bg-gray-400 rounded-full flex items-center justify-center text-white text-xs">?</span>
+                            <span className="w-6 h-6 bg-gray-400 rounded-full flex items-center justify-center text-white text-xs">
+                              ?
+                            </span>
                             <span>Ukjent</span>
                             <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">
                               {filteredPotentialGroups["Ukjent"].length}
@@ -1050,14 +1358,20 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                           </h3>
                           <PotentialPositionDropZone targetPosition="Ukjent">
                             <div className="space-y-2">
-                              {filteredPotentialGroups["Ukjent"].map((playerName, index) => (
-                                <DraggablePotentialPlayer
-                                  key={`potential-ukjent-${playerName}-${nameToRegistrationNumber[playerName] || nameToRow[playerName] || `idx-${index}`}`}
-                                  playerName={playerName}
-                                  position="Ukjent"
-                                  index={index}
-                                />
-                              ))}
+                              {filteredPotentialGroups["Ukjent"].map(
+                                (playerName, index) => (
+                                  <DraggablePotentialPlayer
+                                    key={`potential-ukjent-${playerName}-${
+                                      nameToRegistrationNumber[playerName] ||
+                                      nameToRow[playerName] ||
+                                      `idx-${index}`
+                                    }`}
+                                    playerName={playerName}
+                                    position="Ukjent"
+                                    index={index}
+                                  />
+                                )
+                              )}
                             </div>
                           </PotentialPositionDropZone>
                         </div>
@@ -1066,12 +1380,18 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                       {filteredPotentialGroups["Ukjent"].length === 0 && (
                         <div>
                           <h3 className="font-semibold text-sm text-white mb-3 flex items-center gap-2">
-                            <span className="w-6 h-6 bg-gray-400 rounded-full flex items-center justify-center text-white text-xs">?</span>
+                            <span className="w-6 h-6 bg-gray-400 rounded-full flex items-center justify-center text-white text-xs">
+                              ?
+                            </span>
                             <span>Ukjent</span>
-                            <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">0</span>
+                            <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">
+                              0
+                            </span>
                           </h3>
                           <PotentialPositionDropZone targetPosition="Ukjent">
-                            <p className="text-gray-50/90 italic min-h-[50px] flex items-center">Dra spillere hit for ukjent posisjon</p>
+                            <p className="text-gray-50/90 italic min-h-[50px] flex items-center">
+                              Dra spillere hit for ukjent posisjon
+                            </p>
                           </PotentialPositionDropZone>
                         </div>
                       )}
@@ -1082,7 +1402,9 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
             </div>
 
             {/* Laguttak */}
-            <div className="bg-gradient-to-br from-purple-500 via-purple-400 to-pink-500 rounded-xl shadow-sm overflow-hidden animate-fade-in md:order-2 md:col-span-1 lg:col-span-5" style={{ animationDelay: "0.2s" }}>
+            <div
+              className="bg-gradient-to-br from-purple-500 via-purple-400 to-pink-500 rounded-xl shadow-sm overflow-hidden animate-fade-in md:order-2 md:col-span-1 lg:col-span-5"
+              style={{ animationDelay: "0.2s" }}>
               <div className="bg-black/10 px-6 py-4">
                 <h2 className="text-lg font-semibold text-white flex items-center gap-2">
                   <span>🏆</span>
@@ -1097,20 +1419,29 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                       return (
                         <div key={pos}>
                           <h3 className="font-semibold text-sm text-white mb-3 flex items-center gap-2">
-                            <span className={`w-6 h-6 ${positionColors[pos]} rounded-full flex items-center justify-center text-white text-xs`}>
+                            <span
+                              className={`w-6 h-6 ${positionColors[pos]} rounded-full flex items-center justify-center text-white text-xs`}>
                               {positionIcons[pos]}
                             </span>
                             <span>{pos}</span>
-                            <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">{teamPlayers.length}</span>
+                            <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">
+                              {teamPlayers.length}
+                            </span>
                           </h3>
                           <TeamPositionDropZone targetPosition={pos}>
                             {teamPlayers.length === 0 ? (
-                              <p className="text-gray-50/90 italic min-h-[50px] flex items-center">Ingen spillere valgt - dra hit for å legge til</p>
+                              <p className="text-gray-50/90 italic min-h-[50px] flex items-center">
+                                Ingen spillere valgt - dra hit for å legge til
+                              </p>
                             ) : (
                               <div className="space-y-2">
                                 {teamPlayers.map((playerName, index) => (
                                   <DraggableTeamPlayer
-                                    key={`team-${pos}-${playerName}-${nameToRegistrationNumber[playerName] || nameToRow[playerName] || `idx-${index}`}`}
+                                    key={`team-${pos}-${playerName}-${
+                                      nameToRegistrationNumber[playerName] ||
+                                      nameToRow[playerName] ||
+                                      `idx-${index}`
+                                    }`}
                                     playerName={playerName}
                                     position={pos}
                                     index={index}
@@ -1140,50 +1471,107 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                 {POSITIONS.map((position) => {
                   const positionPlayers = players
-                    .filter((player) => (player.desiredPositions?.toLowerCase() || "").includes(position.toLowerCase()))
-                    .filter((player) => getFilteredPlayers([player]).length > 0);
+                    .filter((player) =>
+                      (player.desiredPositions?.toLowerCase() || "").includes(
+                        position.toLowerCase()
+                      )
+                    )
+                    .filter(
+                      (player) => getFilteredPlayers([player]).length > 0
+                    );
 
                   return (
                     <div key={position} className="space-y-3">
                       <h3 className="font-semibold text-sm flex items-center gap-2 pb-2 border-b border-gray-200">
-                        <span className={`w-5 h-5 ${positionColors[position]} rounded-full flex items-center justify-center text-white text-xs`}>
+                        <span
+                          className={`w-5 h-5 ${positionColors[position]} rounded-full flex items-center justify-center text-white text-xs`}>
                           {positionIcons[position]}
                         </span>
-                        <span className="text-gray-800 text-sm">{position}</span>
-                        <span className="text-xs text-gray-600">({positionPlayers.length})</span>
+                        <span className="text-gray-800 text-sm">
+                          {position}
+                        </span>
+                        <span className="text-xs text-gray-600">
+                          ({positionPlayers.length})
+                        </span>
                       </h3>
                       <div className="space-y-2 max-h-96 overflow-y-auto">
                         {positionPlayers.length === 0 ? (
-                          <p className="text-gray-500 italic text-sm">Ingen spillere ønsker denne posisjonen</p>
+                          <p className="text-gray-500 italic text-sm">
+                            Ingen spillere ønsker denne posisjonen
+                          </p>
                         ) : (
                           positionPlayers.map((player, idx) => {
-                            const isAvailable = available.some((p) => p.name === player.name);
-                            const isInTeam = POSITIONS.some((pos) => selection[pos].includes(player.name));
-                            const isPotential = potentialPlayers.includes(player.name);
+                            const isAvailable = available.some(
+                              (p) => p.name === player.name
+                            );
+                            const isInTeam = POSITIONS.some((pos) =>
+                              selection[pos].includes(player.name)
+                            );
+                            const isPotential = potentialPlayers.includes(
+                              player.name
+                            );
 
-                            let statusColor = ""; let statusText = ""; let statusIcon = "";
-                            if (isInTeam) { statusColor = "bg-green-100 text-green-800 border-green-200"; statusText = "I lag"; statusIcon = "✅"; }
-                            else if (isPotential) { statusColor = "bg-orange-100 text-orange-800 border-orange-200"; statusText = "Potensiell"; statusIcon = "⭐"; }
-                            else if (isAvailable) { statusColor = "bg-blue-100 text-blue-800 border-blue-200"; statusText = "Tilgjengelig"; statusIcon = "👤"; }
-                            else { statusColor = "bg-gray-100 text-gray-600 border-gray-200"; statusText = "Ukjent"; statusIcon = "❓"; }
+                            let statusColor = "";
+                            let statusText = "";
+                            let statusIcon = "";
+                            if (isInTeam) {
+                              statusColor =
+                                "bg-green-100 text-green-800 border-green-200";
+                              statusText = "I lag";
+                              statusIcon = "✅";
+                            } else if (isPotential) {
+                              statusColor =
+                                "bg-orange-100 text-orange-800 border-orange-200";
+                              statusText = "Potensiell";
+                              statusIcon = "⭐";
+                            } else if (isAvailable) {
+                              statusColor =
+                                "bg-blue-100 text-blue-800 border-blue-200";
+                              statusText = "Tilgjengelig";
+                              statusIcon = "👤";
+                            } else {
+                              statusColor =
+                                "bg-gray-100 text-gray-600 border-gray-200";
+                              statusText = "Ukjent";
+                              statusIcon = "❓";
+                            }
 
                             return (
                               <div
-                                key={`position-overview-${position}-${player.name}-${player.registrationNumber || player.rowNumber || `idx-${idx}`}`}
+                                key={`position-overview-${position}-${
+                                  player.name
+                                }-${
+                                  player.registrationNumber ||
+                                  player.rowNumber ||
+                                  `idx-${idx}`
+                                }`}
                                 className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                                 <div className="flex items-center gap-2 min-w-0">
-                                  {(player.registrationNumber || player.rowNumber) && (
+                                  {(player.registrationNumber ||
+                                    player.rowNumber) && (
                                     <span
                                       className="text-[11px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 shrink-0"
-                                      title={player.registrationNumber ? `Registreringsnummer ${player.registrationNumber}` : `Rad ${player.rowNumber}`}>
-                                      #{player.registrationNumber || (player.rowNumber ? player.rowNumber + 98 : "")}
+                                      title={
+                                        player.registrationNumber
+                                          ? `Registreringsnummer ${player.registrationNumber}`
+                                          : `Rad ${player.rowNumber}`
+                                      }>
+                                      #
+                                      {player.registrationNumber ||
+                                        (player.rowNumber
+                                          ? player.rowNumber + 98
+                                          : "")}
                                     </span>
                                   )}
-                                  <span className="font-medium text-gray-800 truncate text-sm" title={player.name}>
+                                  <span
+                                    className="font-medium text-gray-800 truncate text-sm"
+                                    title={player.name}>
                                     {player.name}
                                   </span>
                                 </div>
-                                <span className={`text-xs px-2 py-1 rounded-full border shrink-0 ${statusColor}`} title={statusText}>
+                                <span
+                                  className={`text-xs px-2 py-1 rounded-full border shrink-0 ${statusColor}`}
+                                  title={statusText}>
                                   {statusIcon}
                                 </span>
                               </div>
@@ -1203,7 +1591,9 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
             message={notification.message}
             type={notification.type}
             isVisible={notification.isVisible}
-            onClose={() => setNotification((prev) => ({ ...prev, isVisible: false }))}
+            onClose={() =>
+              setNotification((prev) => ({ ...prev, isVisible: false }))
+            }
           />
         </div>
       </div>
