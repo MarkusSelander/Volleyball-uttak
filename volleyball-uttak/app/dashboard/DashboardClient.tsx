@@ -745,6 +745,105 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
     [flattenGroups, selection, saveToLocalStorage, showNotification]
   );
 
+  // Draggable team player component (similar to potential players)
+  const DraggableTeamPlayer = ({
+    playerName,
+    position,
+    index,
+  }: {
+    playerName: string;
+    position: Position;
+    index: number;
+  }) => {
+    const { attributes, listeners, setNodeRef, transform, isDragging } =
+      useDraggable({
+        id: `team-${position}-${playerName}-${index}`,
+        data: {
+          type: "team-player",
+          playerName,
+          fromPosition: position,
+        },
+      });
+
+    const style = transform
+      ? {
+          transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+        }
+      : undefined;
+
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        className={`bg-white/80 border border-white/30 rounded-lg p-3 hover:bg-white/90 transition-colors ${
+          isDragging
+            ? "opacity-70 shadow-xl z-50 bg-white border-2 border-blue-300"
+            : ""
+        }`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 min-w-0">
+            {/* Drag handle */}
+            <button
+              type="button"
+              className="p-1.5 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing touch-manipulation select-none min-w-[32px] min-h-[32px] flex items-center justify-center rounded-lg hover:bg-gray-200/50 active:bg-gray-300/50 transition-colors"
+              aria-label="Dra for å flytte"
+              title="Dra for å flytte"
+              {...attributes}
+              {...listeners}
+              onClick={(e) => e.stopPropagation()}>
+              <svg
+                className="w-4 h-4 pointer-events-none"
+                viewBox="0 0 20 20"
+                fill="currentColor">
+                <path d="M7 4a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 8a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 12a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 16a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2z" />
+              </svg>
+            </button>
+            {(nameToRegistrationNumber[playerName] ||
+              nameToRow[playerName]) && (
+              <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 shrink-0">
+                #
+                {nameToRegistrationNumber[playerName] ||
+                  (nameToRow[playerName] ? nameToRow[playerName] + 98 : "")}
+              </span>
+            )}
+            <span className="font-medium text-gray-800 truncate text-sm">
+              {playerName}
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => moveFromTeamToPotential(playerName)}
+              disabled={isSaving}
+              className="text-orange-500 hover:text-orange-700 p-2 md:p-1.5 rounded-full transition-colors hover:bg-orange-50 hover:scale-110 touch-manipulation min-w-[44px] min-h-[44px] md:min-w-[32px] md:min-h-[32px] flex items-center justify-center"
+              title="Flytt til potensielle"
+              type="button">
+              <span className="text-sm">⭐</span>
+            </button>
+            <button
+              onClick={() => removePlayer(position, playerName)}
+              disabled={isSaving}
+              className="text-red-500 hover:text-red-700 p-2 md:p-1.5 rounded-full transition-colors hover:bg-red-50 hover:scale-110 touch-manipulation min-w-[44px] min-h-[44px] md:min-w-[32px] md:min-h-[32px] flex items-center justify-center"
+              title="Fjern fra lag"
+              type="button">
+              <svg
+                className="w-4 h-4 md:w-4 md:h-4 pointer-events-none"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // Draggable potential player component
   const DraggablePotentialPlayer = ({
     playerName,
@@ -938,6 +1037,29 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
         removePlayer(fromPosition, playerName);
       }
 
+      // Handle dragging team player to potential drop zone
+      else if (
+        activeData.type === "team-player" &&
+        overData.type === "potential-drop"
+      ) {
+        const playerName = activeData.playerName;
+        const fromPosition = activeData.fromPosition as Position;
+        console.log("Moving team player to potential:", playerName, "from", fromPosition);
+        moveFromTeamToPotential(playerName);
+      }
+
+      // Handle dragging team player to potential position drop zone
+      else if (
+        activeData.type === "team-player" &&
+        overData.type === "potential-position-drop"
+      ) {
+        const playerName = activeData.playerName;
+        const fromPosition = activeData.fromPosition as Position;
+        const targetPosition = overData.targetPosition;
+        console.log("Moving team player to specific potential position:", playerName, "from", fromPosition, "to", targetPosition);
+        moveFromTeamToPotential(playerName);
+      }
+
       // Handle dragging potential player to position
       else if (
         activeData.type === "potential-player" &&
@@ -1003,6 +1125,40 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
           removeFromPotential(playerName);
           setTimeout(() => addToPotential(player), 100); // Small delay to ensure state update
         }
+      }
+
+      // Handle dragging available player to team drop zone
+      else if (
+        activeData.type === "available-player" &&
+        overData.type === "team-drop"
+      ) {
+        const player = activeData.player;
+        console.log("Moving player to team (general):", player.name);
+        // Find the best position for this player and add them there
+        const mapped = player.desiredPositions
+          ? mapPositions(player.desiredPositions)
+          : [];
+        const targetPosition: Position = mapped.length > 0 ? (mapped[0] as Position) : "Midt";
+        updateSelection(targetPosition, player);
+      }
+
+      // Handle dragging potential player to team drop zone  
+      else if (
+        activeData.type === "potential-player" &&
+        overData.type === "team-drop"
+      ) {
+        const playerName = activeData.playerName;
+        const player = players.find((p) => p.name === playerName);
+        if (player) {
+          console.log("Moving potential player to team (general):", playerName);
+          removeFromPotential(playerName);
+          // Find the best position for this player and add them there
+          const mapped = player.desiredPositions
+            ? mapPositions(player.desiredPositions)
+            : [];
+          const targetPosition: Position = mapped.length > 0 ? (mapped[0] as Position) : "Midt";
+          updateSelection(targetPosition, player);
+        }
       } else {
         console.log("Unhandled drag operation:", {
           activeType: activeData.type,
@@ -1030,6 +1186,55 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
         className={`min-h-[100px] transition-all duration-200 ${
           isOver
             ? "bg-orange-100 border-2 border-orange-300 border-dashed rounded-lg"
+            : ""
+        }`}>
+        {children}
+      </div>
+    );
+  };
+
+  const TeamDropZone = ({ children }: { children: React.ReactNode }) => {
+    const { setNodeRef, isOver } = useDroppable({
+      id: "team-drop",
+      data: {
+        type: "team-drop",
+      },
+    });
+
+    return (
+      <div
+        ref={setNodeRef}
+        className={`min-h-[100px] transition-all duration-200 ${
+          isOver
+            ? "bg-purple-100 border-2 border-purple-300 border-dashed rounded-lg"
+            : ""
+        }`}>
+        {children}
+      </div>
+    );
+  };
+
+  const TeamPositionDropZone = ({
+    children,
+    targetPosition,
+  }: {
+    children: React.ReactNode;
+    targetPosition: Position;
+  }) => {
+    const { setNodeRef, isOver } = useDroppable({
+      id: `team-position-${targetPosition}`,
+      data: {
+        type: "position",
+        position: targetPosition,
+      },
+    });
+
+    return (
+      <div
+        ref={setNodeRef}
+        className={`min-h-[50px] transition-all duration-200 ${
+          isOver
+            ? "bg-pink-100 border-2 border-pink-300 border-dashed rounded-lg p-1"
             : ""
         }`}>
         {children}
@@ -1500,32 +1705,49 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                 </h2>
               </div>
               <div className="p-6 bg-white/20 backdrop-blur-sm">
-                <div className="space-y-6">
-                  {POSITIONS.map((pos) => (
-                    <PositionSection
-                      key={pos}
-                      position={pos}
-                      players={selection[pos]}
-                      positionColors={positionColors}
-                      positionIcons={positionIcons}
-                      onRemovePlayer={(pos, playerName) =>
-                        removePlayer(pos as Position, playerName)
-                      }
-                      onMovePlayer={(fromPos, playerName, toPos) =>
-                        movePlayer(
-                          fromPos as Position,
-                          playerName,
-                          toPos as Position
-                        )
-                      }
-                      onAddToPotential={moveFromTeamToPotential}
-                      positions={POSITIONS}
-                      isSaving={isSaving}
-                      nameToRegistrationNumber={nameToRegistrationNumber}
-                      nameToRow={nameToRow}
-                    />
-                  ))}
-                </div>
+                <TeamDropZone>
+                  <div className="space-y-6">
+                    {POSITIONS.map((pos) => {
+                      const teamPlayers = selection[pos] || [];
+                      return (
+                        <div key={pos}>
+                          <h3 className="font-semibold text-sm text-white mb-3 flex items-center gap-2">
+                            <span
+                              className={`w-6 h-6 ${positionColors[pos]} rounded-full flex items-center justify-center text-white text-xs`}>
+                              {positionIcons[pos]}
+                            </span>
+                            <span>{pos}</span>
+                            <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">
+                              {teamPlayers.length}
+                            </span>
+                          </h3>
+                          <TeamPositionDropZone targetPosition={pos}>
+                            {teamPlayers.length === 0 ? (
+                              <p className="text-gray-500 italic min-h-[50px] flex items-center">
+                                Ingen spillere valgt - dra hit for å legge til
+                              </p>
+                            ) : (
+                              <div className="space-y-2">
+                                {teamPlayers.map((playerName, index) => (
+                                  <DraggableTeamPlayer
+                                    key={`team-${pos}-${playerName}-${
+                                      nameToRegistrationNumber[playerName] ||
+                                      nameToRow[playerName] ||
+                                      `idx-${index}`
+                                    }`}
+                                    playerName={playerName}
+                                    position={pos}
+                                    index={index}
+                                  />
+                                ))}
+                              </div>
+                            )}
+                          </TeamPositionDropZone>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </TeamDropZone>
               </div>
             </div>
           </div>
