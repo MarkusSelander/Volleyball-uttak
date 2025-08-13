@@ -1,7 +1,6 @@
 "use client";
 
-import { auth, db, onAuthStateChanged } from "@/lib/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { auth, onAuthStateChanged } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import LoadingSpinner from "../components/LoadingSpinner";
@@ -161,7 +160,7 @@ export default function UttakPage() {
     };
   }, []);
 
-  // Fetch user selection from Firestore
+  // Fetch user selection from localStorage instead of Firestore
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) {
@@ -169,12 +168,10 @@ export default function UttakPage() {
         return;
       }
       try {
-        const ref = doc(db, "teams", user.uid);
-        const snap = await getDoc(ref);
-        if (snap.exists()) {
-          const data = snap.data() as Selection & {
-            potentialPlayers?: string[];
-          };
+        // Read selection from localStorage (same as dashboard uses)
+        const savedSelection = localStorage.getItem("volleyball-selection");
+        if (savedSelection) {
+          const data = JSON.parse(savedSelection) as Selection;
           // Ensure all keys exist
           const empty: Selection = {
             Midt: [],
@@ -189,7 +186,7 @@ export default function UttakPage() {
         }
       } catch (e) {
         console.error(e);
-        setError("Kunne ikke hente laguttak");
+        setError("Kunne ikke hente laguttak fra lokal lagring");
         setSelection({ Midt: [], Dia: [], Legger: [], Libero: [], Kant: [] });
       } finally {
         setSelectionLoading(false);
