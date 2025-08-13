@@ -42,7 +42,7 @@ const PlayerCard = memo(function PlayerCard({
   return (
     <div
       ref={setNodeRef}
-      className={`flex items-center gap-3 p-3 md:p-3 bg-gray-50 rounded-lg hover-lift animate-slide-in touch-none ${
+      className={`flex items-center gap-0 p-3 md:p-3 bg-blue-50 rounded-lg hover-lift animate-slide-in touch-none ${
         isDragging
           ? "opacity-70 shadow-xl z-50 bg-white border-2 border-blue-300"
           : ""
