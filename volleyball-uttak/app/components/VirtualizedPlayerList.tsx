@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useMemo } from "react";
 import PlayerCard from "./PlayerCard";
 
 interface Player {
@@ -28,21 +28,12 @@ const VirtualizedPlayerList = memo(function VirtualizedPlayerList({
   onAddPotential,
   isSaving,
   itemHeight = 85,
-  batchSize = 30, // Increased batch size for better initial LCP
+  batchSize = 30, // Keep for potential future use
 }: VirtualizedPlayerListProps) {
-  const [visibleCount, setVisibleCount] = useState(batchSize);
-
+  // Show all players at once, no pagination
   const visiblePlayers = useMemo(() => {
-    return players.slice(0, Math.min(visibleCount, players.length));
-  }, [players, visibleCount]);
-
-  const hasMore = visibleCount < players.length;
-
-  const loadMore = useCallback(() => {
-    if (hasMore) {
-      setVisibleCount((prev) => Math.min(prev + batchSize, players.length));
-    }
-  }, [hasMore, batchSize, players.length]);
+    return players;
+  }, [players]);
 
   if (players.length === 0) {
     return (
@@ -54,7 +45,7 @@ const VirtualizedPlayerList = memo(function VirtualizedPlayerList({
 
   return (
     <div className="space-y-3">
-      {/* Rendered players */}
+      {/* All players rendered at once */}
       <div className="grid gap-3">
         {visiblePlayers.map((player, index) => (
           <PlayerCard
@@ -74,18 +65,6 @@ const VirtualizedPlayerList = memo(function VirtualizedPlayerList({
           />
         ))}
       </div>
-
-      {/* Load more button */}
-      {hasMore && (
-        <div className="text-center py-3">
-          <button
-            onClick={loadMore}
-            className="px-4 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-            disabled={isSaving}>
-            Vis flere ({players.length - visibleCount} igjen)
-          </button>
-        </div>
-      )}
     </div>
   );
 });
