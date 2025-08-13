@@ -17,6 +17,7 @@ import Notification from "../components/Notification";
 import PositionSection from "../components/PositionSection";
 import { StatsCardSkeleton } from "../components/SkeletonLoaders";
 import StatsCard from "../components/StatsCard";
+import TeamSelectionSection from "../components/TeamSelectionSection";
 import VirtualizedPlayerList from "../components/VirtualizedPlayerList";
 
 // Prevent double initialization in dev mode (React Strict Mode)
@@ -1031,7 +1032,56 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
           removeFromPotential(playerName);
           setTimeout(() => addToPotential(player), 100); // Small delay to ensure state update
         }
-      } else {
+      }
+
+      // Handle dragging team player to potential drop zone
+      else if (
+        activeData.type === "team-player" &&
+        overData.type === "potential-drop"
+      ) {
+        const playerName = activeData.playerName;
+        const fromPosition = activeData.fromPosition as Position;
+        console.log("Moving team player to potential:", playerName, "from", fromPosition);
+        moveFromTeamToPotential(playerName);
+      }
+
+      // Handle dragging team player to potential position drop zone
+      else if (
+        activeData.type === "team-player" &&
+        overData.type === "potential-position-drop"
+      ) {
+        const playerName = activeData.playerName;
+        const fromPosition = activeData.fromPosition as Position;
+        const targetPosition = overData.targetPosition;
+        console.log("Moving team player to specific potential position:", playerName, "from", fromPosition, "to", targetPosition);
+        moveFromTeamToPotential(playerName);
+        // Move to specific position in potential players
+        setTimeout(() => {
+          const player = players.find((p) => p.name === playerName);
+          if (player) {
+            movePotentialPlayer(playerName, targetPosition);
+          }
+        }, 100);
+      }
+
+      // Handle dragging available/potential player to team drop zone
+      else if (
+        (activeData.type === "available-player" || activeData.type === "potential-player") &&
+        overData.type === "team-drop"
+      ) {
+        const playerName = activeData.type === "available-player" ? activeData.player.name : activeData.playerName;
+        const player = players.find((p) => p.name === playerName);
+        if (player) {
+          console.log("Moving player to team (general):", playerName);
+          if (activeData.type === "potential-player") {
+            removeFromPotential(playerName);
+          }
+          // Add to team - let the user choose position via dropdown or drag to specific position
+          addToPotential(player); // For now, add to potential until position is specified
+        }
+      }
+      
+      else {
         console.log("Unhandled drag operation:", {
           activeType: activeData.type,
           overType: overData.type,
@@ -1528,32 +1578,26 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                 </h2>
               </div>
               <div className="p-6 bg-white/20 backdrop-blur-sm">
-                <div className="space-y-6">
-                  {POSITIONS.map((pos) => (
-                    <PositionSection
-                      key={pos}
-                      position={pos}
-                      players={selection[pos]}
-                      positionColors={positionColors}
-                      positionIcons={positionIcons}
-                      onRemovePlayer={(pos, playerName) =>
-                        removePlayer(pos as Position, playerName)
-                      }
-                      onMovePlayer={(fromPos, playerName, toPos) =>
-                        movePlayer(
-                          fromPos as Position,
-                          playerName,
-                          toPos as Position
-                        )
-                      }
-                      onAddToPotential={moveFromTeamToPotential}
-                      positions={POSITIONS}
-                      isSaving={isSaving}
-                      nameToRegistrationNumber={nameToRegistrationNumber}
-                      nameToRow={nameToRow}
-                    />
-                  ))}
-                </div>
+                <TeamSelectionSection
+                  positions={POSITIONS}
+                  selection={selection}
+                  positionColors={positionColors}
+                  positionIcons={positionIcons}
+                  onRemovePlayer={(pos, playerName) =>
+                    removePlayer(pos as Position, playerName)
+                  }
+                  onMovePlayer={(fromPos, playerName, toPos) =>
+                    movePlayer(
+                      fromPos as Position,
+                      playerName,
+                      toPos as Position
+                    )
+                  }
+                  onAddToPotential={moveFromTeamToPotential}
+                  isSaving={isSaving}
+                  nameToRegistrationNumber={nameToRegistrationNumber}
+                  nameToRow={nameToRow}
+                />
               </div>
             </div>
           </div>
