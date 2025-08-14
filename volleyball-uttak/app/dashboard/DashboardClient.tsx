@@ -932,7 +932,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
             : ""
         }`}>
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-0 min-w-0">
             <button
               type="button"
               className="p-1.5 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing touch-manipulation select-none min-w-[32px] min-h-[32px] flex items-center justify-center rounded-lg hover:bg-gray-200/50 active:bg-gray-300/50 transition-colors"
