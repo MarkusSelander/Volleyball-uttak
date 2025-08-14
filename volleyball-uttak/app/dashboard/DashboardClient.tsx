@@ -1,10 +1,19 @@
 "use client";
 
 import { DragEndEvent, useDraggable, useDroppable } from "@dnd-kit/core";
+import type { Selection as HeroUISelection } from "@heroui/react";
+import {
+  Button,
+  Dropdown,
+  DropdownItem,
+  DropdownMenu,
+  DropdownTrigger,
+} from "@heroui/react";
 import dynamic from "next/dynamic";
 import {
   startTransition,
   useCallback,
+  useDeferredValue,
   useEffect,
   useMemo,
   useRef,
@@ -45,10 +54,21 @@ interface Player {
   rowNumber?: number;
 }
 
-type Selection = Record<Position, string[]>;
+// Utvidet Player interface med forhåndsnormaliserte felt for performance
+interface NormalizedPlayer extends Player {
+  __sortKey: number; // For stabil sortering
+  __name_lc: string;
+  __desired_lc: string;
+  __gender_lc: string;
+  __student_lc: string;
+  __prevteam_lc: string;
+}
+
+// Unngå navnekonflikt med HeroUI sin Selection
+type TeamSelection = Record<Position, string[]>;
 type PotentialGroups = Record<(typeof POSITIONS)[number] | "Ukjent", string[]>;
 
-const emptySelection: Selection = {
+const emptySelection: TeamSelection = {
   Midt: [],
   Dia: [],
   Legger: [],
@@ -56,7 +76,7 @@ const emptySelection: Selection = {
   Kant: [],
 };
 
-const positionColors: Record<Position, string> = {
+const positionColors = {
   Midt: "bg-blue-500",
   Dia: "bg-green-500",
   Legger: "bg-purple-500",
@@ -64,7 +84,7 @@ const positionColors: Record<Position, string> = {
   Kant: "bg-red-500",
 };
 
-const positionIcons: Record<Position, string> = {
+const positionIcons = {
   Midt: "🏐",
   Dia: "⚡",
   Legger: "🎯",
@@ -96,14 +116,66 @@ interface DashboardClientProps {
 }
 
 export default function DashboardClient({ initialData }: DashboardClientProps) {
-  const [players] = useState<Player[]>(initialData.players);
+  // Normaliser og sorter spillere én gang ved initialisering
+  const [players] = useState<NormalizedPlayer[]>(() => {
+    const normalizedPlayers = initialData.players.map(
+      (player): NormalizedPlayer => {
+        // Beregn sorteringsnøkkel
+        const sortKey = player.registrationNumber
+          ? parseInt(player.registrationNumber) || Infinity
+          : player.rowNumber
+          ? player.rowNumber + 98
+          : Infinity;
+
+        return {
+          ...player,
+          __sortKey: sortKey,
+          __name_lc: player.name.toLowerCase(),
+          __desired_lc: (player.desiredPositions || "").toLowerCase(),
+          __gender_lc: (player.gender || "").toLowerCase().trim(),
+          __student_lc: (player.isStudent || "").toLowerCase(),
+          __prevteam_lc: (player.previousTeam || "").toLowerCase(),
+        };
+      }
+    );
+
+    // Sorter en gang ved initialisering
+    normalizedPlayers.sort((a, b) => a.__sortKey - b.__sortKey);
+    return normalizedPlayers;
+  });
+
   const [totalRegistrations] = useState<number>(initialData.totalRegistrations);
-  const [selection, setSelection] = useState<Selection>(emptySelection);
+  const [selection, setSelection] = useState<TeamSelection>(emptySelection);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // ✅ ENKEL SØKELOGIKK: søker direkte mens du skriver
+  // 🔎 Søkefunksjon (live) + fokusbevaring
   const [searchTerm, setSearchTerm] = useState<string>("");
+  // Bruk en "deferred" verdi for å gjøre filtrering litt senere enn tastingen,
+  // slik at UI ikke "jitter" og vi kan bevare fokus stabilt.
+  const deferredSearch = useDeferredValue(searchTerm);
+
+  // Ref-er for å bevare fokus/markørposisjon mens vi skriver
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const keepFocusRef = useRef(false);
+  const caretPosRef = useRef<number | null>(null);
+
+  // Når den "deferred" søkeverdien endrer seg (typisk rett etter taste-oppdatering),
+  // sørg for at feltet fortsatt har fokus og at markørposisjonen bevares.
+  useEffect(() => {
+    if (!keepFocusRef.current || !searchInputRef.current) return;
+    const el = searchInputRef.current;
+    // Re-fokus uten scrolling
+    el.focus({ preventScroll: true });
+    // Gjenopprett markørposisjon (dersom vi har en)
+    if (caretPosRef.current != null) {
+      try {
+        el.setSelectionRange(caretPosRef.current, caretPosRef.current);
+      } catch {
+        // No-op hvis input type osv. ikke støtter setSelectionRange
+      }
+    }
+  }, [deferredSearch]);
 
   const [filters, setFilters] = useState({
     gender: "all",
@@ -167,12 +239,11 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
   );
 
   // -------- Persistence --------
-  // Avoid double-running in React Strict Mode (dev) and ensure this runs once per mount.
   const didLoadRef = useRef(false);
 
   useEffect(() => {
-    if (!hydrated) return; // wait until client
-    if (didLoadRef.current) return; // only once per mount
+    if (!hydrated) return;
+    if (didLoadRef.current) return;
     didLoadRef.current = true;
 
     try {
@@ -180,10 +251,10 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
       const savedPotentialGroups = localStorage.getItem(
         "volleyball-potential-groups"
       );
-      const legacyFlat = localStorage.getItem("volleyball-potential"); // backward compat
+      const legacyFlat = localStorage.getItem("volleyball-potential");
 
       if (savedSelection) {
-        const parsed: Selection = JSON.parse(savedSelection);
+        const parsed: TeamSelection = JSON.parse(savedSelection);
         setSelection(parsed);
       }
 
@@ -213,7 +284,6 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
           else groups.Ukjent.push(name);
         }
         setPotentialGroups(groups);
-        // Migrate to grouped storage
         localStorage.setItem(
           "volleyball-potential-groups",
           JSON.stringify(groups)
@@ -225,7 +295,6 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
     }
   }, [hydrated, players, mapPositions]);
 
-  // Persist whenever selection or potential groups change
   useEffect(() => {
     if (!hydrated) return;
     try {
@@ -253,43 +322,65 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
     []
   );
 
-  // --- Filtering ---
+  // --- Søkefunksjon (med registreringsnummer og rad+98) ---
   const getFilteredPlayers = useCallback(
-    (playerList: Player[]) =>
+    (playerList: NormalizedPlayer[]) =>
       playerList.filter((player) => {
-        // ✅ Bruk det *aktiverte* søket (searchTerm), ikke løpende input
-        if (searchTerm.trim().length > 0) {
-          const searchLower = searchTerm.toLowerCase();
-          const nameMatch = player.name.toLowerCase().includes(searchLower);
+        if (deferredSearch) {
+          const searchRaw = deferredSearch;
+          const searchLower = searchRaw.toLowerCase().trim();
+          const searchDigits = searchRaw.replace(/\s/g, "");
+
+          // Bruk forhåndsnormalisert navn
+          const nameMatch = player.__name_lc.includes(searchLower);
+
+          // Registreringsnummer søk - bruk allerede beregnede verdier
+          const regNumStr = (player.registrationNumber ?? "").toString().trim();
+          const rowNum = player.rowNumber ?? null;
+          const rowPlus98Str = rowNum != null ? (rowNum + 98).toString() : "";
+
           const numberMatch =
-            player.registrationNumber?.toString().includes(searchTerm) ||
-            (player.rowNumber &&
-              (player.rowNumber + 98).toString().includes(searchTerm));
+            (regNumStr && regNumStr.includes(searchDigits)) ||
+            (rowPlus98Str && rowPlus98Str.includes(searchDigits)) ||
+            (!!searchDigits &&
+              (parseInt(regNumStr) === parseInt(searchDigits) ||
+                parseInt(rowPlus98Str) === parseInt(searchDigits)));
+
           if (!nameMatch && !numberMatch) return false;
         }
 
         if (filters.gender !== "all") {
-          const genderLower = player.gender?.toLowerCase().trim() || "";
-          if (filters.gender === "male" && genderLower !== "mann / male")
+          // Bruk forhåndsnormalisert felt
+          if (filters.gender === "male" && player.__gender_lc !== "mann / male")
             return false;
-          if (filters.gender === "female" && genderLower !== "kvinne / female")
+          if (
+            filters.gender === "female" &&
+            player.__gender_lc !== "kvinne / female"
+          )
             return false;
         }
 
         if (filters.isStudent !== "all") {
-          const studentLower = player.isStudent?.toLowerCase() || "";
-          if (filters.isStudent === "yes" && !/^(ja|yes|y)/.test(studentLower))
+          // Bruk forhåndsnormalisert felt
+          if (
+            filters.isStudent === "yes" &&
+            !/^(ja|yes|y)/.test(player.__student_lc)
+          )
             return false;
-          if (filters.isStudent === "no" && !/^(nei|no|n)/.test(studentLower))
+          if (
+            filters.isStudent === "no" &&
+            !/^(nei|no|n)/.test(player.__student_lc)
+          )
             return false;
         }
 
         if (filters.previousTeam !== "all") {
-          const teamLower = player.previousTeam?.toLowerCase() || "";
+          // Bruk forhåndsnormalisert felt
           const playedBefore =
-            teamLower.includes("ntnui") ||
-            /^(ja|yes|y)/.test(teamLower) ||
-            (teamLower.length > 0 && !/^(nei|no|n)/.test(teamLower));
+            player.__prevteam_lc.includes("ntnui") ||
+            /^(ja|yes|y)/.test(player.__prevteam_lc) ||
+            (player.__prevteam_lc.length > 0 &&
+              !/^(nei|no|n)/.test(player.__prevteam_lc));
           if (filters.previousTeam === "yes" && !playedBefore) return false;
           if (filters.previousTeam === "no" && playedBefore) return false;
         }
@@ -317,9 +408,9 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
         }
 
         if (filters.desiredPosition !== "all") {
-          const positionsLower = player.desiredPositions?.toLowerCase() || "";
-          if (!positionsLower.includes(filters.desiredPosition.toLowerCase()))
-            return false;
+          // Bruk forhåndsnormalisert felt
+          const desiredPosLower = filters.desiredPosition.toLowerCase();
+          if (!player.__desired_lc.includes(desiredPosLower)) return false;
         }
 
         if (filters.ageGroup !== "all" && player.year) {
@@ -333,7 +424,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
 
         return true;
       }),
-    [searchTerm, filters]
+    [filters, deferredSearch]
   );
 
   // --- Lookup maps ---
@@ -352,8 +443,8 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
 
   // --- Selection mutators ---
   const updateSelection = useCallback(
-    async (pos: Position, player: Player) => {
-      const newSel: Selection = { ...selection };
+    async (pos: Position, player: NormalizedPlayer) => {
+      const newSel: TeamSelection = { ...selection };
       for (const p of POSITIONS)
         newSel[p] = newSel[p].filter((n) => n !== player.name);
       newSel[pos] = [...newSel[pos], player.name];
@@ -377,7 +468,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
 
   const removePlayer = useCallback(
     async (pos: Position, playerName: string) => {
-      const newSel: Selection = { ...selection };
+      const newSel: TeamSelection = { ...selection };
       newSel[pos] = newSel[pos].filter((name) => name !== playerName);
       startTransition(() => setSelection(newSel));
       showNotification(`${playerName} fjernet fra ${pos}`, "info");
@@ -390,7 +481,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
       if (fromPos === toPos) return;
       setIsSaving(true);
       try {
-        const newSel: Selection = { ...selection };
+        const newSel: TeamSelection = { ...selection };
         newSel[fromPos] = newSel[fromPos].filter((n) => n !== playerName);
         if (!newSel[toPos].includes(playerName))
           newSel[toPos] = [...newSel[toPos], playerName];
@@ -414,10 +505,6 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
     () => Object.values(selection).flat(),
     [selection]
   );
-  const potentialPlayersSet = useMemo(
-    () => new Set(potentialPlayers),
-    [potentialPlayers]
-  );
   const allUnavailablePlayerNames = useMemo(
     () => [...selectedPlayerNames, ...potentialPlayers],
     [selectedPlayerNames, potentialPlayers]
@@ -428,27 +515,20 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
     [getFilteredPlayers, players]
   );
 
+  // For å vise riktig antall i søkemeldingen
+  const searchResultCount = useMemo(() => {
+    if (!deferredSearch) return 0;
+    return filteredPlayersComputation.length;
+  }, [deferredSearch, filteredPlayersComputation]);
+
   const available = useMemo(() => {
     const filteredPlayers = filteredPlayersComputation.filter(
       (p) => !allUnavailablePlayerNames.includes(p.name)
     );
 
-    const sortedPlayers = filteredPlayers.slice().sort((a, b) => {
-      const regA = a.registrationNumber
-        ? parseInt(a.registrationNumber) || Infinity
-        : a.rowNumber
-        ? a.rowNumber + 98
-        : Infinity;
-      const regB = b.registrationNumber
-        ? parseInt(b.registrationNumber) || Infinity
-        : b.rowNumber
-        ? b.rowNumber + 98
-        : Infinity;
-      return regA - regB;
-    });
-
+    // Spillerne er allerede sortert ved initialisering, så vi trenger bare å fjerne duplikater
     const seenNames = new Set<string>();
-    const uniquePlayers = sortedPlayers.filter((player) => {
+    const uniquePlayers = filteredPlayers.filter((player) => {
       if (seenNames.has(player.name)) return false;
       seenNames.add(player.name);
       return true;
@@ -461,7 +541,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
   const filteredPotentialGroups = useMemo(() => {
     const potentialPlayerObjects = potentialPlayers
       .map((name) => players.find((p) => p.name === name))
-      .filter(Boolean) as Player[];
+      .filter(Boolean) as NormalizedPlayer[];
 
     const filteredPotentials = getFilteredPlayers(potentialPlayerObjects);
     const filteredNames = new Set(filteredPotentials.map((p) => p.name));
@@ -479,7 +559,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
 
   // --- Potential groups mutators ---
   const addToPotential = useCallback(
-    async (player: Player) => {
+    async (player: NormalizedPlayer) => {
       const mapped = player.desiredPositions
         ? mapPositions(player.desiredPositions)
         : [];
@@ -520,7 +600,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
 
       startTransition(() => {
         setSelection((prevSel) => {
-          const newSel: Selection = { ...prevSel };
+          const newSel: TeamSelection = { ...prevSel };
           for (const pos of POSITIONS)
             newSel[pos] = newSel[pos].filter((n) => n !== playerName);
           return newSel;
@@ -644,6 +724,24 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
     );
   };
 
+  const AvailableDropZone = ({ children }: { children: React.ReactNode }) => {
+    const { setNodeRef, isOver } = useDroppable({
+      id: "available-drop",
+      data: { type: "available-drop" },
+    });
+    return (
+      <div
+        ref={setNodeRef}
+        className={`min-h-[100px] transition-all duration-200 ${
+          isOver
+            ? "bg-blue-100 border-2 border-blue-300 border-dashed rounded-lg"
+            : ""
+        }`}>
+        {children}
+      </div>
+    );
+  };
+
   const TeamPositionDropZone = ({
     children,
     targetPosition,
@@ -705,14 +803,14 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
         activeData.type === "available-player" &&
         overData.type === "position"
       ) {
-        const player = activeData.player as Player;
+        const player = activeData.player as NormalizedPlayer;
         const targetPosition = overData.position as Position;
         updateSelection(targetPosition, player);
       } else if (
         activeData.type === "available-player" &&
         overData.type === "potential-drop"
       ) {
-        const player = activeData.player as Player;
+        const player = activeData.player as NormalizedPlayer;
         addToPotential(player);
       } else if (
         activeData.type === "team-player" &&
@@ -774,7 +872,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
         activeData.type === "available-player" &&
         overData.type === "team-drop"
       ) {
-        const player = activeData.player as Player;
+        const player = activeData.player as NormalizedPlayer;
         const mapped = player.desiredPositions
           ? mapPositions(player.desiredPositions)
           : [];
@@ -805,11 +903,9 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
 
   // --- Render ---
   if (!hydrated) {
-    // Optional: small placeholder to avoid layout shift
     return <div className="min-h-screen bg-gray-50" />;
   }
 
-  // Draggable components (team & potential)
   const DraggableTeamPlayer = ({
     playerName,
     position,
@@ -978,6 +1074,133 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                 />
               </svg>
             </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const DraggableAvailablePlayer = ({
+    player,
+    index,
+  }: {
+    player: NormalizedPlayer;
+    index: number;
+  }) => {
+    const [selectedKeys, setSelectedKeys] = useState(new Set<string>());
+
+    const { attributes, listeners, setNodeRef, transform, isDragging } =
+      useDraggable({
+        id: `available-${player.name}-${
+          player.registrationNumber || player.rowNumber || index
+        }`,
+        data: { type: "available-player", player, fromPosition: "available" },
+      });
+
+    const style = transform
+      ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
+      : undefined;
+
+    const selectedValue = useMemo(() => {
+      if (selectedKeys.size > 0) {
+        return Array.from(selectedKeys)[0] as string;
+      }
+      return "Velg";
+    }, [selectedKeys]);
+
+    const handleSelectionChange = (keys: HeroUISelection) => {
+      if (keys === "all") return;
+      if (keys instanceof Set) {
+        const s = keys as Set<string>;
+        setSelectedKeys(s);
+        if (s.size > 0) {
+          const selectedPosition = Array.from(s)[0] as Position;
+          if (selectedPosition && POSITIONS.includes(selectedPosition)) {
+            updateSelection(selectedPosition, player);
+          }
+        }
+      }
+    };
+
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        className={`bg-white/80 border border-white/30 rounded-lg p-3 hover:bg-white/90 transition-colors ${
+          isDragging
+            ? "opacity-70 shadow-xl z-50 bg-white border-2 border-blue-300"
+            : ""
+        }`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-0 min-w-0">
+            <button
+              type="button"
+              className="p-1.5 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing touch-manipulation select-none min-w-[32px] min-h-[32px] flex items-center justify-center rounded-lg hover:bg-gray-200/50 active:bg-gray-300/50 transition-colors"
+              aria-label="Dra for å flytte"
+              title="Dra for å flytte"
+              {...attributes}
+              {...listeners}
+              onClick={(e) => e.stopPropagation()}>
+              <svg
+                className="w-4 h-4 pointer-events-none"
+                viewBox="0 0 20 20"
+                fill="currentColor">
+                <path d="M7 4a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 8a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 12a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 16a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2z" />
+              </svg>
+            </button>
+            {(player.registrationNumber || player.rowNumber) && (
+              <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 shrink-0">
+                #
+                {player.registrationNumber ||
+                  (player.rowNumber ? player.rowNumber + 98 : "")}
+              </span>
+            )}
+            <span className="font-medium text-gray-800 truncate text-sm">
+              {player.name}
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              className="text-orange-500 hover:text-orange-700 p-2 md:p-1.5 rounded-full transition-colors hover:bg-orange-50 hover:scale-110 touch-manipulation min-w-[44px] min-h-[44px] md:min-w-[32px] md:min-h-[32px] flex items-center justify-center"
+              title="Flytt til potensielle"
+              type="button"
+              onClick={() => addToPotential(player)}>
+              <span className="text-sm">⭐</span>
+            </button>
+            <Dropdown>
+              <DropdownTrigger>
+                <Button
+                  className="bg-gray-800 hover:bg-gray-700 text-white border-0 rounded-lg md:rounded-full text-xs min-w-[40px] md:min-w-[70px] px-1.5 md:px-4 py-0.5 md:py-2 shadow-lg hover:shadow-xl transition-all duration-200 ease-in-out"
+                  variant="solid"
+                  size="sm"
+                  isDisabled={isSaving}>
+                  {selectedValue}
+                </Button>
+              </DropdownTrigger>
+              <DropdownMenu
+                aria-label="Position selection"
+                selectedKeys={selectedKeys}
+                selectionMode="single"
+                variant="flat"
+                className="min-w-[120px] bg-gray-800 shadow-xl border-0 rounded-2xl p-2"
+                itemClasses={{
+                  base: "rounded-xl data-[hover=true]:bg-blue-600 data-[hover=true]:text-white data-[selected=true]:bg-blue-500 data-[selected=true]:text-white transition-all duration-200 ease-in-out text-white mb-1",
+                  title: "font-medium",
+                }}
+                onSelectionChange={handleSelectionChange}>
+                {POSITIONS.map((pos) => (
+                  <DropdownItem
+                    key={pos}
+                    value={pos}
+                    className="hover:bg-blue-600 hover:text-white transition-all duration-200 text-white">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">{positionIcons[pos]}</span>
+                      <span className="font-medium">{pos}</span>
+                    </div>
+                  </DropdownItem>
+                ))}
+              </DropdownMenu>
+            </Dropdown>
           </div>
         </div>
       </div>
@@ -1194,68 +1417,121 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
           {/* Main grid layout */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:[grid-template-columns:repeat(14,minmax(0,1fr))] gap-2">
             {/* Tilgjengelige spillere */}
-            <div className="bg-white rounded-xl shadow-sm overflow-hidden animate-fade-in md:order-1 md:col-span-1 lg:col-span-5">
-              <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-4">
+            <div
+              className="bg-gradient-to-br from-blue-500 via-blue-400 to-cyan-500 rounded-xl shadow-sm overflow-hidden animate-fade-in md:order-1 md:col-span-1 lg:col-span-5"
+              style={{ animationDelay: "0s" }}>
+              <div className="bg-black/10 px-6 py-4">
                 <h2 className="text-lg font-semibold text-white flex items-center gap-2">
                   <span>👥</span>
                   Tilgjengelige spillere
                 </h2>
               </div>
-              <div className="p-6">
-                {/* Search */}
-                <div className="mb-2">
-                  <div className="relative">
-                    <input
-                      type="text"
-                      placeholder="Søk etter navn eller radnummer..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Escape") {
-                          setSearchTerm("");
-                        }
-                      }}
-                      className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
-                    />
-                    <svg
-                      className="absolute left-3 top-2.5 h-5 w-5 text-gray-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                      />
-                    </svg>
+              <div className="p-6 bg-white/20 backdrop-blur-sm">
+                <AvailableDropZone>
+                  {/* Search */}
+                  <div className="mb-4">
+                    <div className="mb-2">
+                      <div className="relative">
+                        <input
+                          ref={searchInputRef}
+                          type="text"
+                          placeholder="Søk etter navn eller registreringsnummer (rad+98)..."
+                          value={searchTerm}
+                          onFocus={() => (keepFocusRef.current = true)}
+                          onBlur={() => {
+                            // Slå av fokus-bevaring når brukeren forlater feltet
+                            keepFocusRef.current = false;
+                          }}
+                          onChange={(e) => {
+                            // Husk markørposisjon før vi oppdaterer state
+                            caretPosRef.current =
+                              e.currentTarget.selectionStart;
+                            setSearchTerm(e.target.value);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Escape") {
+                              setSearchTerm("");
+                              // Nullstill caretposisjon
+                              caretPosRef.current = 0;
+                            }
+                          }}
+                          className="w-full px-4 py-2 pl-10 border border-white/30 bg-white/80 backdrop-blur-sm rounded-lg focus:ring-2 focus:ring-white/50 focus:border-white/50 text-gray-900 placeholder-gray-600"
+                        />
+                        <svg
+                          className="absolute left-3 top-2.5 h-5 w-5 text-gray-500"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24">
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                          />
+                        </svg>
+
+                        {searchTerm && (
+                          <button
+                            type="button"
+                            aria-label="Tøm søk"
+                            title="Tøm søk"
+                            onMouseDown={(e) => e.preventDefault()} // hindrer blur før click
+                            onClick={() => {
+                              setSearchTerm("");
+                              caretPosRef.current = 0;
+                              // Behold fokus når vi tømmer
+                              if (searchInputRef.current) {
+                                searchInputRef.current.focus({
+                                  preventScroll: true,
+                                });
+                                searchInputRef.current.setSelectionRange(0, 0);
+                              }
+                            }}
+                            className="absolute right-2 top-2.5 px-2 py-0.5 text-xs rounded-md bg-white/70 hover:bg-white/90 border border-white/40">
+                            Tøm
+                          </button>
+                        )}
+                      </div>
+                      {deferredSearch && (
+                        <p className="text-sm text-white/80 mt-2">
+                          Viser {searchResultCount} spillere
+                        </p>
+                      )}
+                    </div>
                   </div>
-                </div>
 
-                <div className="mb-4">
-                  {searchTerm && (
-                    <p className="text-sm text-gray-600">
-                      Viser {available.length} spillere
-                    </p>
+                  {available.length === 0 ? (
+                    <div className="text-center py-8 text-white/80">
+                      <span className="text-4xl mb-4 block">👥</span>
+                      <p className="text-white">
+                        {deferredSearch
+                          ? "Ingen spillere funnet"
+                          : "Laster spillere..."}
+                      </p>
+                      {deferredSearch && (
+                        <p className="text-sm text-white/70 mt-2">
+                          Prøv å endre søkekriteriene
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <div
+                      className="space-y-2 max-h-[calc(100vh-320px)] overflow-y-auto overflow-x-hidden pr-2"
+                      style={{ WebkitOverflowScrolling: "touch" }}>
+                      {available.map((player, index) => (
+                        <DraggableAvailablePlayer
+                          key={`available-${player.name}-${
+                            player.registrationNumber ||
+                            player.rowNumber ||
+                            index
+                          }`}
+                          player={player}
+                          index={index}
+                        />
+                      ))}
+                    </div>
                   )}
-                </div>
-
-                {/* Virtualized list (No SSR) */}
-                <div
-                  className="player-card-container mt-2 max-h-[calc(100vh-220px)] overflow-y-auto overflow-x-hidden pr-2 w-full max-w-full"
-                  style={{ WebkitOverflowScrolling: "touch" }}>
-                  <VirtualizedPlayerListNoSSR
-                    players={available}
-                    positions={POSITIONS}
-                    positionIcons={positionIcons}
-                    onSelectPosition={(pos: string, player: { name: string }) =>
-                      updateSelection(pos as Position, player as Player)
-                    }
-                    onAddPotential={(p) => addToPotential(p as Player)}
-                    isSaving={isSaving}
-                    batchSize={20}
-                  />
-                </div>
+                </AvailableDropZone>
               </div>
             </div>
 
@@ -1449,9 +1725,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                 {POSITIONS.map((position) => {
                   const positionPlayers = players
                     .filter((player) =>
-                      (player.desiredPositions?.toLowerCase() || "").includes(
-                        position.toLowerCase()
-                      )
+                      player.__desired_lc.includes(position.toLowerCase())
                     )
                     .filter(
                       (player) => getFilteredPlayers([player]).length > 0
@@ -1484,7 +1758,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                             const isInTeam = POSITIONS.some((pos) =>
                               selection[pos].includes(player.name)
                             );
-                            const isPotential = potentialPlayersSet.has(
+                            const isPotential = potentialPlayers.includes(
                               player.name
                             );
 
@@ -1522,11 +1796,17 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                                   player.rowNumber ||
                                   `idx-${idx}`
                                 }`}
-                                className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg p-2">
+                                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                                 <div className="flex items-center gap-2 min-w-0">
                                   {(player.registrationNumber ||
                                     player.rowNumber) && (
-                                    <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 shrink-0">
+                                    <span
+                                      className="text-[11px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 shrink-0"
+                                      title={
+                                        player.registrationNumber
+                                          ? `Registreringsnummer ${player.registrationNumber}`
+                                          : `Rad ${player.rowNumber}`
+                                      }>
                                       #
                                       {player.registrationNumber ||
                                         (player.rowNumber
@@ -1534,13 +1814,16 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                                           : "")}
                                     </span>
                                   )}
-                                  <span className="truncate text-sm font-medium text-gray-800">
+                                  <span
+                                    className="font-medium text-gray-800 truncate text-sm"
+                                    title={player.name}>
                                     {player.name}
                                   </span>
                                 </div>
                                 <span
-                                  className={`ml-2 text-xs px-2 py-0.5 rounded-full border ${statusColor}`}>
-                                  {statusIcon} {statusText}
+                                  className={`text-xs px-2 py-1 rounded-full border shrink-0 ${statusColor}`}
+                                  title={statusText}>
+                                  {statusIcon}
                                 </span>
                               </div>
                             );
@@ -1553,18 +1836,17 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Notification */}
-        {notification.isVisible && (
-          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50">
-            <Notification
-              message={notification.message}
-              type={notification.type}
-              isVisible={notification.isVisible}
-            />
-          </div>
-        )}
+          {/* Notification */}
+          <Notification
+            message={notification.message}
+            type={notification.type}
+            isVisible={notification.isVisible}
+            onClose={() =>
+              setNotification((prev) => ({ ...prev, isVisible: false }))
+            }
+          />
+        </div>
       </div>
     </DragDropWrapper>
   );
