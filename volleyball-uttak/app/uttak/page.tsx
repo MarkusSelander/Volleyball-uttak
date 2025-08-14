@@ -3,6 +3,7 @@
 import { auth, onAuthStateChanged } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import * as XLSX from "xlsx";
 import LoadingSpinner from "../components/LoadingSpinner";
 import NavHeader from "../components/NavHeader";
 
@@ -308,6 +309,43 @@ export default function UttakPage() {
     );
   }, [preparedRows, filters]);
 
+  // Eksport til Excel funksjon
+  const exportToExcel = () => {
+    if (filteredRows.length === 0) {
+      alert("Ingen spillere å eksportere");
+      return;
+    }
+
+    // Forbered data i ønsket format
+    const exportData = filteredRows.map((row: any) => {
+      const name = row.name || "";
+      const email = row.email || "";
+
+      // Formater tidligere lag info
+      let previousTeamInfo = "Ny spiller";
+      if (row.previousTeam && row.previousTeam.trim() !== "") {
+        previousTeamInfo = `${row.previousTeam} i fjor`;
+      }
+
+      return {
+        Navn: name,
+        "E-post": email,
+        "Tidligere lag": previousTeamInfo,
+      };
+    });
+
+    // Opprett Excel-arbeidsbok
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Uttatte spillere");
+
+    // Last ned filen
+    const fileName = `uttatte-spillere-${new Date()
+      .toISOString()
+      .slice(0, 10)}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+  };
+
   const setFilter = (col: string, patch: Partial<Filter>) => {
     setFilters((prev) => {
       const existing = prev[col] || { op: "contains", value: "" };
@@ -344,14 +382,30 @@ export default function UttakPage() {
               <h2 className="text-lg font-semibold text-white">
                 Uttatte spillere
               </h2>
-              {anyFilterActive && (
-                <button
-                  onClick={() => setFilters({})}
-                  className="text-sm px-3 py-1 rounded bg-white/20 hover:bg-white/30 text-white"
-                  title="Fjern alle filtre">
-                  Tøm filtre
-                </button>
-              )}
+              <div className="flex items-center gap-3">
+                {filteredRows.length > 0 && (
+                  <button
+                    onClick={exportToExcel}
+                    className="text-sm px-4 py-2 rounded bg-white/20 hover:bg-white/30 text-white border border-white/30 flex items-center gap-2"
+                    title="Eksporter til Excel">
+                    <svg
+                      className="w-4 h-4"
+                      fill="currentColor"
+                      viewBox="0 0 24 24">
+                      <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" />
+                    </svg>
+                    Eksporter Excel
+                  </button>
+                )}
+                {anyFilterActive && (
+                  <button
+                    onClick={() => setFilters({})}
+                    className="text-sm px-3 py-1 rounded bg-white/20 hover:bg-white/30 text-white"
+                    title="Fjern alle filtre">
+                    Tøm filtre
+                  </button>
+                )}
+              </div>
             </div>
             <div className="p-4 overflow-x-auto">
               {filteredRows.length === 0 ? (
