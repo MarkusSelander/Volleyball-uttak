@@ -647,6 +647,24 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
     );
   };
 
+  const AvailableDropZone = ({ children }: { children: React.ReactNode }) => {
+    const { setNodeRef, isOver } = useDroppable({
+      id: "available-drop",
+      data: { type: "available-drop" },
+    });
+    return (
+      <div
+        ref={setNodeRef}
+        className={`min-h-[100px] transition-all duration-200 ${
+          isOver
+            ? "bg-blue-100 border-2 border-blue-300 border-dashed rounded-lg"
+            : ""
+        }`}>
+        {children}
+      </div>
+    );
+  };
+
   const TeamPositionDropZone = ({
     children,
     targetPosition,
@@ -986,6 +1004,92 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
     );
   };
 
+  const DraggableAvailablePlayer = ({
+    player,
+    index,
+  }: {
+    player: Player;
+    index: number;
+  }) => {
+    const { attributes, listeners, setNodeRef, transform, isDragging } =
+      useDraggable({
+        id: `available-${player.name}-${
+          player.registrationNumber || player.rowNumber || index
+        }`,
+        data: { type: "available-player", player, fromPosition: "available" },
+      });
+
+    const style = transform
+      ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
+      : undefined;
+
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        className={`bg-white/80 border border-white/30 rounded-lg p-3 hover:bg-white/90 transition-colors ${
+          isDragging
+            ? "opacity-70 shadow-xl z-50 bg-white border-2 border-blue-300"
+            : ""
+        }`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              type="button"
+              className="p-1.5 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing touch-manipulation select-none min-w-[32px] min-h-[32px] flex items-center justify-center rounded-lg hover:bg-gray-200/50 active:bg-gray-300/50 transition-colors"
+              aria-label="Dra for å flytte"
+              title="Dra for å flytte"
+              {...attributes}
+              {...listeners}
+              onClick={(e) => e.stopPropagation()}>
+              <svg
+                className="w-4 h-4 pointer-events-none"
+                viewBox="0 0 20 20"
+                fill="currentColor">
+                <path d="M7 4a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 8a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 12a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2zM7 16a1 1 0 110-2 1 1 0 010 2zm6-1a1 1 0 100-2 1 1 0 000 2z" />
+              </svg>
+            </button>
+            {(player.registrationNumber || player.rowNumber) && (
+              <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 shrink-0">
+                #
+                {player.registrationNumber ||
+                  (player.rowNumber ? player.rowNumber + 98 : "")}
+              </span>
+            )}
+            <span className="font-medium text-gray-800 truncate text-sm">
+              {player.name}
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              className="text-orange-500 hover:text-orange-700 p-2 md:p-1.5 rounded-full transition-colors hover:bg-orange-50 hover:scale-110 touch-manipulation min-w-[44px] min-h-[44px] md:min-w-[32px] md:min-h-[32px] flex items-center justify-center"
+              title="Flytt til potensielle"
+              type="button"
+              onClick={() => addToPotential(player)}>
+              <span className="text-sm">⭐</span>
+            </button>
+            <select
+              className="text-green-500 hover:text-green-700 p-1 rounded-lg border border-gray-300 bg-white text-xs min-w-[60px] transition-colors"
+              defaultValue=""
+              onChange={(e) =>
+                updateSelection(e.target.value as Position, player)
+              }
+              disabled={isSaving}>
+              <option value="" disabled>
+                Velg
+              </option>
+              {POSITIONS.map((pos) => (
+                <option key={pos} value={pos}>
+                  {positionIcons[pos]} {pos}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <DragDropWrapper onDragStart={() => {}} onDragEnd={handleDragEnd}>
       <div className="min-h-screen bg-gray-50" data-dnd-context="true">
@@ -1196,62 +1300,81 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
           {/* Main grid layout */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:[grid-template-columns:repeat(14,minmax(0,1fr))] gap-2">
             {/* Tilgjengelige spillere */}
-            <div className="bg-white rounded-xl shadow-sm overflow-hidden animate-fade-in md:order-1 md:col-span-1 lg:col-span-5">
-              <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-4">
+            <div
+              className="bg-gradient-to-br from-blue-500 via-blue-400 to-cyan-500 rounded-xl shadow-sm overflow-hidden animate-fade-in md:order-1 md:col-span-1 lg:col-span-5"
+              style={{ animationDelay: "0s" }}>
+              <div className="bg-black/10 px-6 py-4">
                 <h2 className="text-lg font-semibold text-white flex items-center gap-2">
                   <span>👥</span>
                   Tilgjengelige spillere
                 </h2>
               </div>
-              <div className="p-6">
-                {/* Search */}
-                <div className="mb-4">
-                  <div className="relative">
-                    <input
-                      type="text"
-                      placeholder="Søk etter navn eller radnummer..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
-                    />
-                    <svg
-                      className="absolute left-3 top-2.5 h-5 w-5 text-gray-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              <div className="p-6 bg-white/20 backdrop-blur-sm">
+                <AvailableDropZone>
+                  {/* Search */}
+                  <div className="mb-4">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Søk etter navn eller radnummer..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full px-4 py-2 pl-10 border border-white/30 bg-white/80 backdrop-blur-sm rounded-lg focus:ring-2 focus:ring-white/50 focus:border-white/50 text-gray-900 placeholder-gray-600"
                       />
-                    </svg>
+                      <svg
+                        className="absolute left-3 top-2.5 h-5 w-5 text-gray-500"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24">
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                        />
+                      </svg>
+                    </div>
+                    {searchTerm && (
+                      <p className="text-sm text-white/80 mt-2">
+                        {debouncedSearchTerm === searchTerm
+                          ? `Viser ${available.length} spillere`
+                          : `Søker...`}
+                      </p>
+                    )}
                   </div>
-                  {searchTerm && (
-                    <p className="text-sm text-gray-600 mt-2">
-                      {debouncedSearchTerm === searchTerm
-                        ? `Viser ${available.length} av ${available.length} spillere`
-                        : `Søker...`}
-                    </p>
-                  )}
-                </div>
 
-                {/* Virtualized list (No SSR) */}
-                <div
-                  className="player-card-container mt-2 max-h-[100vh] overflow-y-auto overflow-x-hidden pr-2"
-                  style={{ WebkitOverflowScrolling: "touch" }}>
-                  <VirtualizedPlayerListNoSSR
-                    players={available}
-                    positions={POSITIONS}
-                    positionIcons={positionIcons}
-                    onSelectPosition={(pos: string, player: { name: string }) =>
-                      updateSelection(pos as Position, player as Player)
-                    }
-                    onAddPotential={(p) => addToPotential(p as Player)}
-                    isSaving={isSaving}
-                    batchSize={20}
-                  />
-                </div>
+                  {available.length === 0 ? (
+                    <div className="text-center py-8 text-white/80">
+                      <span className="text-4xl mb-4 block">👥</span>
+                      <p className="text-white">
+                        {searchTerm
+                          ? "Ingen spillere funnet"
+                          : "Laster spillere..."}
+                      </p>
+                      {searchTerm && (
+                        <p className="text-sm text-white/70 mt-2">
+                          Prøv å endre søkekriteriene
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <div
+                      className="space-y-2 max-h-[calc(100vh-320px)] overflow-y-auto overflow-x-hidden pr-2"
+                      style={{ WebkitOverflowScrolling: "touch" }}>
+                      {available.map((player, index) => (
+                        <DraggableAvailablePlayer
+                          key={`available-${player.name}-${
+                            player.registrationNumber ||
+                            player.rowNumber ||
+                            index
+                          }`}
+                          player={player}
+                          index={index}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </AvailableDropZone>
               </div>
             </div>
 

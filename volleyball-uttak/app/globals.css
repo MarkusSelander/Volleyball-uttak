@@ -274,3 +274,10 @@ html {
   border: 2px dashed #3b82f6;
   transition: all 0.2s ease;
 }
+
+/* iPad and smaller: reduce player card container height */
+@media (max-width: 1024px) {
+  .player-card-container {
+    max-height: calc(100vh - 180px) !important;
+  }
+}
