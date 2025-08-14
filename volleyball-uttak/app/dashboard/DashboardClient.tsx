@@ -1,6 +1,14 @@
 "use client";
 
 import { DragEndEvent, useDraggable, useDroppable } from "@dnd-kit/core";
+import type { Selection } from "@heroui/react";
+import {
+  Button,
+  Dropdown,
+  DropdownItem,
+  DropdownMenu,
+  DropdownTrigger,
+} from "@heroui/react";
 import dynamic from "next/dynamic";
 import {
   startTransition,
@@ -1011,6 +1019,8 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
     player: Player;
     index: number;
   }) => {
+    const [selectedKeys, setSelectedKeys] = useState(new Set<string>());
+
     const { attributes, listeners, setNodeRef, transform, isDragging } =
       useDraggable({
         id: `available-${player.name}-${
@@ -1023,6 +1033,25 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
       ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
       : undefined;
 
+    const selectedValue = useMemo(() => {
+      if (selectedKeys.size > 0) {
+        return Array.from(selectedKeys)[0] as string;
+      }
+      return "Velg";
+    }, [selectedKeys]);
+
+    const handleSelectionChange = (keys: any) => {
+      if (keys instanceof Set) {
+        setSelectedKeys(keys);
+        if (keys.size > 0) {
+          const selectedPosition = Array.from(keys)[0] as Position;
+          if (selectedPosition && POSITIONS.includes(selectedPosition)) {
+            updateSelection(selectedPosition, player);
+          }
+        }
+      }
+    };
+
     return (
       <div
         ref={setNodeRef}
@@ -1033,7 +1062,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
             : ""
         }`}>
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-0 min-w-0">
             <button
               type="button"
               className="p-1.5 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing touch-manipulation select-none min-w-[32px] min-h-[32px] flex items-center justify-center rounded-lg hover:bg-gray-200/50 active:bg-gray-300/50 transition-colors"
@@ -1068,22 +1097,40 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
               onClick={() => addToPotential(player)}>
               <span className="text-sm">⭐</span>
             </button>
-            <select
-              className="text-green-500 hover:text-green-700 p-1 rounded-lg border border-gray-300 bg-white text-xs min-w-[60px] transition-colors"
-              defaultValue=""
-              onChange={(e) =>
-                updateSelection(e.target.value as Position, player)
-              }
-              disabled={isSaving}>
-              <option value="" disabled>
-                Velg
-              </option>
-              {POSITIONS.map((pos) => (
-                <option key={pos} value={pos}>
-                  {positionIcons[pos]} {pos}
-                </option>
-              ))}
-            </select>
+            <Dropdown>
+              <DropdownTrigger>
+                <Button
+                  className="bg-gray-800 hover:bg-gray-700 text-white border-0 rounded-full text-xs min-w-[70px] px-4 py-2 shadow-lg hover:shadow-xl transition-all duration-200 ease-in-out"
+                  variant="solid"
+                  size="sm"
+                  isDisabled={isSaving}>
+                  {selectedValue}
+                </Button>
+              </DropdownTrigger>
+              <DropdownMenu
+                aria-label="Position selection"
+                selectedKeys={selectedKeys}
+                selectionMode="single"
+                variant="flat"
+                className="min-w-[120px] bg-gray-800 shadow-xl border-0 rounded-2xl p-2"
+                itemClasses={{
+                  base: "rounded-xl data-[hover=true]:bg-blue-600 data-[hover=true]:text-white data-[selected=true]:bg-blue-500 data-[selected=true]:text-white transition-all duration-200 ease-in-out text-white mb-1",
+                  title: "font-medium",
+                }}
+                onSelectionChange={handleSelectionChange}>
+                {POSITIONS.map((pos) => (
+                  <DropdownItem
+                    key={pos}
+                    value={pos}
+                    className="hover:bg-blue-600 hover:text-white transition-all duration-200 text-white">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">{positionIcons[pos]}</span>
+                      <span className="font-medium">{pos}</span>
+                    </div>
+                  </DropdownItem>
+                ))}
+              </DropdownMenu>
+            </Dropdown>
           </div>
         </div>
       </div>
