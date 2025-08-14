@@ -48,7 +48,7 @@ export async function GET() {
     const EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
     const RAW_KEY = process.env.GOOGLE_PRIVATE_KEY;
     const SHEET_ID = process.env.GOOGLE_SHEET_ID;
-    const RANGE = process.env.GOOGLE_SHEET_RANGE || "'Skjemasvar 1'!A:T"; // Leser til T for registreringsnummer
+    const RANGE = process.env.GOOGLE_SHEET_RANGE || "'Skjemasvar 1'!A:T"; // Leser til T for å få alle kolonner
 
     if (!EMAIL || !RAW_KEY || !SHEET_ID) {
       console.warn("[/api/players] Mangler ENV, bruker fallback.");

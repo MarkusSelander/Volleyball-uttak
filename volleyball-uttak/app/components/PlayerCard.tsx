@@ -93,11 +93,10 @@ const PlayerCard = memo(function PlayerCard({
           title={
             player.registrationNumber
               ? `Registreringsnummer ${player.registrationNumber}`
-              : `Rad ${player.rowNumber ? player.rowNumber + 98 : "ukjent"}`
+              : "Registreringsnummer ikke tilgjengelig"
           }>
           #
-          {player.registrationNumber ||
-            (player.rowNumber ? player.rowNumber + 98 : "?")}
+          {player.registrationNumber || "?"}
         </span>
       </div>
 

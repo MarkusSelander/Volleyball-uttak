@@ -10,8 +10,8 @@ self.onmessage = function (e) {
         const matchesName = player.name?.toLowerCase().includes(searchLower);
         const matchesNumber =
           player.registrationNumber?.includes(searchTerm) ||
-          (player.rowNumber &&
-            (player.rowNumber + 98).toString().includes(searchTerm));
+          // Søk på navn
+          player.name?.toLowerCase().includes(searchTerm.toLowerCase());
 
         if (!matchesName && !matchesNumber) {
           return false;

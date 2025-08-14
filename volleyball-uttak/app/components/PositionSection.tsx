@@ -170,9 +170,9 @@ function DraggablePlayer({
           title={
             registrationNumber
               ? `Registreringsnummer ${registrationNumber}`
-              : `Rad ${rowNumber ? rowNumber + 98 : "ukjent"}`
+              : "Registreringsnummer ikke tilgjengelig"
           }>
-          #{registrationNumber || (rowNumber ? rowNumber + 98 : "?")}
+          #{registrationNumber || "?"}
         </span>
         <span
           className="font-semibold text-gray-800 truncate text-xs md:text-sm"

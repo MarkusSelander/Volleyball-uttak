@@ -26,7 +26,7 @@ const { google } = require("googleapis");
   const rawKey = process.env.GOOGLE_PRIVATE_KEY || "";
   const key = rawKey.includes("\\n") ? rawKey.replace(/\\n/g, "\n") : rawKey;
   const id = process.env.GOOGLE_SHEET_ID;
-  const range = process.env.GOOGLE_SHEET_RANGE || "Sheet1!A:O";
+  const range = process.env.GOOGLE_SHEET_RANGE || "Sheet1!A:T"; // Test med samme range som API
 
   if (!email || !key || !id) {
     throw new Error(
@@ -47,6 +47,15 @@ const { google } = require("googleapis");
   });
   console.log({
     rows: resp.data.values?.length ?? 0,
+    headerColumns: resp.data.values?.[0]?.length ?? 0,
+    firstRowColumns: resp.data.values?.[1]?.length ?? 0,
+    emailTest: resp.data.values?.slice(1, 3)?.map((row, i) => ({
+      row: i + 2,
+      name: row[2],
+      emailColumnB: row[1], // Kolonne B
+      emailColumnP: row[15], // Kolonne P (den riktige)
+      totalColumns: row.length,
+    })),
     sample: resp.data.values?.slice(0, 3),
   });
 })().catch((e) => {

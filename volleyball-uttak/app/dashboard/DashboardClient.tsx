@@ -120,11 +120,9 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
   const [players] = useState<NormalizedPlayer[]>(() => {
     const normalizedPlayers = initialData.players.map(
       (player): NormalizedPlayer => {
-        // Beregn sorteringsnøkkel
+        // Beregn sorteringsnøkkel - bruk bare registreringsnummer fra spreadsheet
         const sortKey = player.registrationNumber
           ? parseInt(player.registrationNumber) || Infinity
-          : player.rowNumber
-          ? player.rowNumber + 98
           : Infinity;
 
         return {
@@ -322,7 +320,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
     []
   );
 
-  // --- Søkefunksjon (med registreringsnummer og rad+98) ---
+  // --- Søkefunksjon (med registreringsnummer) ---
   const getFilteredPlayers = useCallback(
     (playerList: NormalizedPlayer[]) =>
       playerList.filter((player) => {
@@ -334,17 +332,12 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
           // Bruk forhåndsnormalisert navn
           const nameMatch = player.__name_lc.includes(searchLower);
 
-          // Registreringsnummer søk - bruk allerede beregnede verdier
+          // Registreringsnummer søk - bruk bare faktisk registreringsnummer
           const regNumStr = (player.registrationNumber ?? "").toString().trim();
-          const rowNum = player.rowNumber ?? null;
-          const rowPlus98Str = rowNum != null ? (rowNum + 98).toString() : "";
 
           const numberMatch =
             (regNumStr && regNumStr.includes(searchDigits)) ||
-            (rowPlus98Str && rowPlus98Str.includes(searchDigits)) ||
-            (!!searchDigits &&
-              (parseInt(regNumStr) === parseInt(searchDigits) ||
-                parseInt(rowPlus98Str) === parseInt(searchDigits)));
+            (!!searchDigits && parseInt(regNumStr) === parseInt(searchDigits));
 
           if (!nameMatch && !numberMatch) return false;
         }
@@ -956,7 +949,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
               <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 shrink-0">
                 #
                 {nameToRegistrationNumber[playerName] ||
-                  (nameToRow[playerName] ? nameToRow[playerName] + 98 : "")}
+                  (nameToRegistrationNumber[playerName])}
               </span>
             )}
             <span className="font-medium text-gray-800 truncate text-sm">
@@ -1047,7 +1040,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
               <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 shrink-0">
                 #
                 {nameToRegistrationNumber[playerName] ||
-                  (nameToRow[playerName] ? nameToRow[playerName] + 98 : "")}
+                  (nameToRegistrationNumber[playerName])}
               </span>
             )}
             <span className="font-medium text-gray-800 truncate text-sm">
@@ -1150,9 +1143,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
             </button>
             {(player.registrationNumber || player.rowNumber) && (
               <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 shrink-0">
-                #
-                {player.registrationNumber ||
-                  (player.rowNumber ? player.rowNumber + 98 : "")}
+                #{player.registrationNumber || "?"}
               </span>
             )}
             <span className="font-medium text-gray-800 truncate text-sm">
@@ -1435,7 +1426,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                         <input
                           ref={searchInputRef}
                           type="text"
-                          placeholder="Søk etter navn eller registreringsnummer (rad+98)..."
+                          placeholder="Søk etter navn eller registreringsnummer..."
                           value={searchTerm}
                           onFocus={() => (keepFocusRef.current = true)}
                           onBlur={() => {
@@ -1807,11 +1798,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                                           ? `Registreringsnummer ${player.registrationNumber}`
                                           : `Rad ${player.rowNumber}`
                                       }>
-                                      #
-                                      {player.registrationNumber ||
-                                        (player.rowNumber
-                                          ? player.rowNumber + 98
-                                          : "")}
+                                      #{player.registrationNumber || "?"}
                                     </span>
                                   )}
                                   <span
