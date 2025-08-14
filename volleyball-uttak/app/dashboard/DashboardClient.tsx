@@ -949,7 +949,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
               <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 shrink-0">
                 #
                 {nameToRegistrationNumber[playerName] ||
-                  (nameToRegistrationNumber[playerName])}
+                  nameToRegistrationNumber[playerName]}
               </span>
             )}
             <span className="font-medium text-gray-800 truncate text-sm">
@@ -1040,7 +1040,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
               <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 shrink-0">
                 #
                 {nameToRegistrationNumber[playerName] ||
-                  (nameToRegistrationNumber[playerName])}
+                  nameToRegistrationNumber[playerName]}
               </span>
             )}
             <span className="font-medium text-gray-800 truncate text-sm">

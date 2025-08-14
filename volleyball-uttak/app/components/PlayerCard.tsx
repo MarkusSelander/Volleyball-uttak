@@ -95,8 +95,7 @@ const PlayerCard = memo(function PlayerCard({
               ? `Registreringsnummer ${player.registrationNumber}`
               : "Registreringsnummer ikke tilgjengelig"
           }>
-          #
-          {player.registrationNumber || "?"}
+          #{player.registrationNumber || "?"}
         </span>
       </div>
 
