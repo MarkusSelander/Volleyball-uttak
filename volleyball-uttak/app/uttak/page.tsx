@@ -47,6 +47,7 @@ const LABELS: Record<string, string> = {
   isStudent: "Student",
   level: "Nivå",
   attendance: "Email",
+  registrationNumber: "Reg.nr",
 };
 
 const prettyLabel = (key: string) => {
@@ -235,7 +236,7 @@ export default function UttakPage() {
     }));
   }, [baseRows, nameToPosition]);
 
-  // Columns: only Rad, Navn, Fødselsdato, Kjønn, Telefon, Mail (col P), Student, Posisjon
+  // Columns: only Rad, Navn, Fødselsdato, Kjønn, Telefon, Mail (col P), Student, Registreringsnummer, Posisjon
   const columns = useMemo(() => {
     return [
       { key: "rowNumber", label: "Rad", narrow: true },
@@ -245,6 +246,7 @@ export default function UttakPage() {
       { key: "phone", label: "Telefon" },
       { key: "email", label: "Mail" },
       { key: "isStudent", label: "Student" },
+      { key: "registrationNumber", label: "Reg.nr", narrow: true },
       { key: "selectedPosition", label: "Posisjon" },
     ];
   }, []);
@@ -545,6 +547,10 @@ export default function UttakPage() {
                             display = formatDate(raw);
                           } else if (col.key === "isStudent") {
                             display = formatStudent(raw);
+                          } else if (col.key === "registrationNumber") {
+                            // Format registration number with # prefix
+                            const regNum = String(raw ?? "").trim();
+                            display = regNum ? `#${regNum}` : "";
                           } else if (raw === null || raw === undefined) {
                             display = "";
                           } else if (typeof raw === "object") {
