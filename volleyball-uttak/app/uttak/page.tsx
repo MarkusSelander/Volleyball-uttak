@@ -236,17 +236,16 @@ export default function UttakPage() {
     }));
   }, [baseRows, nameToPosition]);
 
-  // Columns: only Rad, Navn, Fødselsdato, Kjønn, Telefon, Mail (col P), Student, Registreringsnummer, Posisjon
+  // Columns: only Navn, Fødselsdato, Kjønn, Telefon, Mail (col P), Student, Registreringsnummer, Posisjon
   const columns = useMemo(() => {
     return [
-      { key: "rowNumber", label: "Rad", narrow: true },
+      { key: "registrationNumber", label: "Reg.nr", narrow: true },
       { key: "name", label: "Navn" },
       { key: "birthDate", label: "Fødselsdato" },
       { key: "gender", label: "Kjønn" },
       { key: "phone", label: "Telefon" },
       { key: "email", label: "Mail" },
       { key: "isStudent", label: "Student" },
-      { key: "registrationNumber", label: "Reg.nr", narrow: true },
       { key: "selectedPosition", label: "Posisjon" },
     ];
   }, []);
