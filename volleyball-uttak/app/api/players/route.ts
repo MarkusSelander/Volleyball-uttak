@@ -39,6 +39,7 @@ interface PlayerData {
   isStudent?: string;
   attendance?: string;
   registrationNumber?: string; // Kolonne T - Registreringsnummer
+  selectedForTeam?: string; // Kolonne S - Tatt ut på
   rowNumber?: number; // Radnummer i arket (1-basert)
 }
 
@@ -115,6 +116,7 @@ export async function GET() {
         desiredLevel: get(row, 11), // L - Ønsket nivå
         experience: get(row, 12), // M - Erfaring
         email: get(row, 15), // P - E-post
+        selectedForTeam: get(row, 18), // S - Tatt ut på
         registrationNumber: get(row, 19), // T - Registreringsnummer
         rowNumber: i + 2, // +1 for header, +1 for 1-basert radindeks
       }));

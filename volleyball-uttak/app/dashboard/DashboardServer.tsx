@@ -24,6 +24,7 @@ interface PlayerData {
   availability?: string;
   registrationNumber?: string;
   rowNumber?: number;
+  selectedForTeam?: string;
 }
 
 // Fallback data for development/demo
@@ -182,6 +183,7 @@ async function getPlayersData(): Promise<{
         desiredLevel: get(row, 11), // L - Ønsket nivå
         experience: get(row, 12), // M - Erfaring
         availability: get(row, 13), // N - Tilgjengelighet
+        selectedForTeam: get(row, 18), // S - Tatt ut på
         registrationNumber: get(row, 19), // T - Registreringsnummer
         rowNumber: i + 2, // +1 for header, +1 for 1-based row index
       }));

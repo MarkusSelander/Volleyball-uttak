@@ -52,6 +52,7 @@ interface Player {
   availability?: string;
   registrationNumber?: string;
   rowNumber?: number;
+  selectedForTeam?: string;
 }
 
 // Utvidet Player interface med forhåndsnormaliserte felt for performance
@@ -324,6 +325,11 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
   const getFilteredPlayers = useCallback(
     (playerList: NormalizedPlayer[]) =>
       playerList.filter((player) => {
+        // Filtrer bort spillere som allerede er tatt ut til et lag
+        if (player.selectedForTeam && player.selectedForTeam.trim()) {
+          return false;
+        }
+
         if (deferredSearch) {
           const searchRaw = deferredSearch;
           const searchLower = searchRaw.toLowerCase().trim();
