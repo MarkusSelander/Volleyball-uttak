@@ -317,30 +317,26 @@ export default function UttakPage() {
       return;
     }
 
-    // Forbered data i ønsket format
-    const exportData = filteredRows.map((row: any, index: number) => {
-      const name = row.name || "";
+    // Forbered data med "Spilte i fjor" basert på kolonne H (previousTeam)
+    const exportData = filteredRows.map((row: any) => {
+      const name = String(row.name || "").trim();
       const email = row.email || "";
+      const previousTeam = String(row.previousTeam || "").trim();
+
+      // Sjekk kolonne H - hvis den har verdi, bruk den + " i fjor", ellers "Ny spiller"
+      const spillteIfjor = previousTeam
+        ? `${previousTeam} i fjor`
+        : "Ny spiller";
 
       return {
         Navn: name,
         "E-post": email,
-        "Spilte ifjor": "", // Placeholder - vil bli erstattet med formel
+        "Spilte ifjor": spillteIfjor,
       };
     });
 
     // Opprett Excel-arbeidsbok
     const ws = XLSX.utils.json_to_sheet(exportData);
-
-    // Legg til formler for "Spilte ifjor" kolonnen (kolonne C)
-    filteredRows.forEach((row: any, index: number) => {
-      const rowNum = index + 2; // +2 for header og 0-indexing
-      const cellRef = `C${rowNum}`;
-      // Excel formel som refererer til email i kolonne B (G7 erstattes med B-cellen)
-      const formula = `=HVISFEIL(HVIS(XLOOKUP(B${rowNum},'Skjemasvar 1'!$P:$P,'Skjemasvar 1'!$H:$H)=0,"Ny spiller",XLOOKUP(B${rowNum},'Skjemasvar 1'!$P:$P,'Skjemasvar 1'!$H:$H)&" i fjor"),"")`;
-      ws[cellRef] = { t: "str", f: formula };
-    });
-
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Uttatte spillere");
 
