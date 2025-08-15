@@ -18,6 +18,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useTransition,
 } from "react";
 
 // Components (No SSR for VirtualizedPlayerList to avoid hydration mismatch)
@@ -148,11 +149,41 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // 🔎 Søkefunksjon (live) + fokusbevaring
+  // 🔎 Søkefunksjon (live) + fokusbevaring med optimalisert debouncing
   const [searchTerm, setSearchTerm] = useState<string>("");
+  const [immediateSearchTerm, setImmediateSearchTerm] = useState<string>("");
+  const [isSearchPending, startSearchTransition] = useTransition();
+
   // Bruk en "deferred" verdi for å gjøre filtrering litt senere enn tastingen,
   // slik at UI ikke "jitter" og vi kan bevare fokus stabilt.
   const deferredSearch = useDeferredValue(searchTerm);
+
+  // Debounce search term updates for smoother experience
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    if (immediateSearchTerm === "") {
+      // Clear search immediately for empty string
+      setSearchTerm("");
+      return;
+    }
+
+    searchTimeoutRef.current = setTimeout(() => {
+      startSearchTransition(() => {
+        setSearchTerm(immediateSearchTerm);
+      });
+    }, 150); // 150ms debounce for smoother typing
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [immediateSearchTerm]);
 
   // Ref-er for å bevare fokus/markørposisjon mens vi skriver
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -321,29 +352,53 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
     []
   );
 
-  // --- Søkefunksjon (med registreringsnummer) ---
+  // --- Optimalisert søkefunksjon (med registreringsnummer) ---
   const getFilteredPlayers = useCallback(
-    (playerList: NormalizedPlayer[]) =>
-      playerList.filter((player) => {
+    (playerList: NormalizedPlayer[]) => {
+      // Early return hvis ingen søk eller filter
+      if (!deferredSearch && Object.values(filters).every((v) => v === "all")) {
+        return playerList.filter((player) => {
+          // Filtrer bare ut spillere som allerede er tatt ut til et lag
+          return !(player.selectedForTeam && player.selectedForTeam.trim());
+        });
+      }
+
+      // Forberegn søkeverdier for bedre ytelse
+      const searchRaw = deferredSearch;
+      const searchLower = searchRaw?.toLowerCase().trim() || "";
+      const searchDigits = searchRaw?.replace(/\s/g, "") || "";
+      const hasSearch = !!deferredSearch;
+      const searchIsNumeric = hasSearch && /^\d+$/.test(searchDigits);
+
+      return playerList.filter((player) => {
         // Filtrer bort spillere som allerede er tatt ut til et lag
         if (player.selectedForTeam && player.selectedForTeam.trim()) {
           return false;
         }
 
-        if (deferredSearch) {
-          const searchRaw = deferredSearch;
-          const searchLower = searchRaw.toLowerCase().trim();
-          const searchDigits = searchRaw.replace(/\s/g, "");
-
-          // Bruk forhåndsnormalisert navn
+        // Optimalisert søk
+        if (hasSearch) {
+          // Navn søk (mest vanlig)
           const nameMatch = player.__name_lc.includes(searchLower);
 
-          // Registreringsnummer søk - bruk bare faktisk registreringsnummer
-          const regNumStr = (player.registrationNumber ?? "").toString().trim();
-
-          const numberMatch =
-            (regNumStr && regNumStr.includes(searchDigits)) ||
-            (!!searchDigits && parseInt(regNumStr) === parseInt(searchDigits));
+          // Registreringsnummer søk (bare hvis det finnes tall i søket)
+          let numberMatch = false;
+          if (searchDigits) {
+            const regNumStr = (player.registrationNumber ?? "")
+              .toString()
+              .trim();
+            if (regNumStr) {
+              if (searchIsNumeric) {
+                // Eksakt match eller starts-with for numerisk søk
+                numberMatch =
+                  regNumStr === searchDigits ||
+                  regNumStr.startsWith(searchDigits);
+              } else {
+                // Substring match for blandet søk
+                numberMatch = regNumStr.includes(searchDigits);
+              }
+            }
+          }
 
           if (!nameMatch && !numberMatch) return false;
         }
@@ -422,7 +477,8 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
         }
 
         return true;
-      }),
+      });
+    },
     [filters, deferredSearch]
   );
 
@@ -509,10 +565,17 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
     [selectedPlayerNames, potentialPlayers]
   );
 
-  const filteredPlayersComputation = useMemo(
-    () => getFilteredPlayers(players),
-    [getFilteredPlayers, players]
-  );
+  // Memoize filtered players computation for better performance
+  const filteredPlayersComputation = useMemo(() => {
+    // Early return optimization for empty search and no filters
+    if (!deferredSearch && Object.values(filters).every((v) => v === "all")) {
+      return players.filter((player) => {
+        return !(player.selectedForTeam && player.selectedForTeam.trim());
+      });
+    }
+
+    return getFilteredPlayers(players);
+  }, [getFilteredPlayers, players, deferredSearch, filters]);
 
   // For å vise riktig antall i søkemeldingen
   const searchResultCount = useMemo(() => {
@@ -1433,7 +1496,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                           ref={searchInputRef}
                           type="text"
                           placeholder="Søk etter navn eller registreringsnummer..."
-                          value={searchTerm}
+                          value={immediateSearchTerm}
                           onFocus={() => (keepFocusRef.current = true)}
                           onBlur={() => {
                             // Slå av fokus-bevaring når brukeren forlater feltet
@@ -1443,16 +1506,19 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                             // Husk markørposisjon før vi oppdaterer state
                             caretPosRef.current =
                               e.currentTarget.selectionStart;
-                            setSearchTerm(e.target.value);
+                            setImmediateSearchTerm(e.target.value);
                           }}
                           onKeyDown={(e) => {
                             if (e.key === "Escape") {
+                              setImmediateSearchTerm("");
                               setSearchTerm("");
                               // Nullstill caretposisjon
                               caretPosRef.current = 0;
                             }
                           }}
-                          className="w-full px-4 py-2 pl-10 border border-white/30 bg-white/80 backdrop-blur-sm rounded-lg focus:ring-2 focus:ring-white/50 focus:border-white/50 text-gray-900 placeholder-gray-600"
+                          className={`w-full px-4 py-2 pl-10 border border-white/30 bg-white/80 backdrop-blur-sm rounded-lg focus:ring-2 focus:ring-white/50 focus:border-white/50 text-gray-900 placeholder-gray-600 transition-all duration-200 ${
+                            isSearchPending ? "opacity-75" : ""
+                          }`}
                         />
                         <svg
                           className="absolute left-3 top-2.5 h-5 w-5 text-gray-500"
@@ -1467,13 +1533,14 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                           />
                         </svg>
 
-                        {searchTerm && (
+                        {immediateSearchTerm && (
                           <button
                             type="button"
                             aria-label="Tøm søk"
                             title="Tøm søk"
                             onMouseDown={(e) => e.preventDefault()} // hindrer blur før click
                             onClick={() => {
+                              setImmediateSearchTerm("");
                               setSearchTerm("");
                               caretPosRef.current = 0;
                               // Behold fokus når vi tømmer
@@ -1484,15 +1551,36 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                                 searchInputRef.current.setSelectionRange(0, 0);
                               }
                             }}
-                            className="absolute right-2 top-2.5 px-2 py-0.5 text-xs rounded-md bg-white/70 hover:bg-white/90 border border-white/40">
+                            className="absolute right-2 top-2.5 px-3 py-1 text-xs font-medium rounded-md bg-gray-800 hover:bg-gray-900 text-white shadow-lg border border-gray-700 transition-all duration-200 hover:shadow-xl">
                             Tøm
                           </button>
                         )}
                       </div>
                       {deferredSearch && (
-                        <p className="text-sm text-white/80 mt-2">
-                          Viser {searchResultCount} spillere
-                        </p>
+                        <div className="flex items-center justify-between text-sm text-white/80 mt-2">
+                          <span>Viser {searchResultCount} spillere</span>
+                          {isSearchPending && (
+                            <span className="flex items-center gap-1">
+                              <svg
+                                className="animate-spin h-3 w-3"
+                                fill="none"
+                                viewBox="0 0 24 24">
+                                <circle
+                                  cx="12"
+                                  cy="12"
+                                  r="10"
+                                  stroke="currentColor"
+                                  strokeWidth="4"
+                                  className="opacity-25"></circle>
+                                <path
+                                  fill="currentColor"
+                                  className="opacity-75"
+                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              Oppdaterer...
+                            </span>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1513,7 +1601,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                     </div>
                   ) : (
                     <div
-                      className="space-y-2 max-h-[calc(100vh-320px)] overflow-y-auto overflow-x-hidden pr-2"
+                      className="space-y-2 max-h-[calc(100vh-320px)] overflow-y-auto overflow-x-hidden pr-2 scroll-smooth"
                       style={{ WebkitOverflowScrolling: "touch" }}>
                       {available.map((player, index) => (
                         <DraggableAvailablePlayer
