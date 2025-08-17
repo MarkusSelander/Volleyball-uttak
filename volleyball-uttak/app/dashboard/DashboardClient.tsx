@@ -182,6 +182,12 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
   const [immediateSearchTerm, setImmediateSearchTerm] = useState<string>("");
   const [isSearchPending, startSearchTransition] = useTransition();
 
+  // Detect mobile once to avoid repeated detection
+  const isMobile = useMemo(() => {
+    if (typeof navigator === "undefined") return false;
+    return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  }, []);
+
   // Bruk en "deferred" verdi for å gjøre filtrering litt senere enn tastingen,
   // slik at UI ikke "jitter" og vi kan bevare fokus stabilt.
   const deferredSearch = useDeferredValue(searchTerm);
@@ -200,39 +206,37 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
       return;
     }
 
-    // Kortere debounce på mobile enheter for bedre responsivitet
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    const debounceTime = isMobile ? 100 : 150;
+    // På mobile enheter - oppdater umiddelbart uten transitions for å unngå re-renders
+    if (isMobile) {
+      setSearchTerm(immediateSearchTerm);
+      return;
+    }
 
+    // Desktop: bruk debounce og transitions
     searchTimeoutRef.current = setTimeout(() => {
       startSearchTransition(() => {
         setSearchTerm(immediateSearchTerm);
       });
-    }, debounceTime);
+    }, 150);
 
     return () => {
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [immediateSearchTerm]);
+  }, [immediateSearchTerm, isMobile]);
 
   // Ref-er for å bevare fokus/markørposisjon mens vi skriver
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const keepFocusRef = useRef(false);
   const caretPosRef = useRef<number | null>(null);
 
-  // Når den "deferred" søkeverdien endrer seg (typisk rett etter taste-oppdatering),
-  // sørg for at feltet fortsatt har fokus og at markørposisjonen bevares.
+  // Forenklet focus-logikk som unngår re-renders på mobile
   useEffect(() => {
-    if (!keepFocusRef.current || !searchInputRef.current) return;
-
-    // Unngå aggressive focus-manipulation på mobile enheter
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    if (isMobile) return;
+    if (!keepFocusRef.current || !searchInputRef.current || isMobile) return;
 
     const el = searchInputRef.current;
-    // Re-fokus uten scrolling
+    // Re-fokus uten scrolling kun på desktop
     el.focus({ preventScroll: true });
     // Gjenopprett markørposisjon (dersom vi har en)
     if (caretPosRef.current != null) {
@@ -242,7 +246,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
         // No-op hvis input type osv. ikke støtter setSelectionRange
       }
     }
-  }, [deferredSearch]);
+  }, [deferredSearch, isMobile]);
 
   const [filters, setFilters] = useState({
     gender: "all",
@@ -1578,23 +1582,31 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                           spellCheck={false}
                           placeholder="Søk etter navn eller registreringsnummer..."
                           value={immediateSearchTerm}
-                          onFocus={() => (keepFocusRef.current = true)}
+                          onFocus={() => {
+                            if (!isMobile) {
+                              keepFocusRef.current = true;
+                            }
+                          }}
                           onBlur={() => {
                             // Slå av fokus-bevaring når brukeren forlater feltet
                             keepFocusRef.current = false;
                           }}
                           onChange={(e) => {
-                            // Husk markørposisjon før vi oppdaterer state
-                            caretPosRef.current =
-                              e.currentTarget.selectionStart;
+                            // Forenklet change handler for mobile - unngå caret tracking
+                            if (!isMobile) {
+                              caretPosRef.current =
+                                e.currentTarget.selectionStart;
+                            }
                             setImmediateSearchTerm(e.target.value);
                           }}
                           onKeyDown={(e) => {
                             if (e.key === "Escape") {
                               setImmediateSearchTerm("");
                               setSearchTerm("");
-                              // Nullstill caretposisjon
-                              caretPosRef.current = 0;
+                              // Kun reset caret på desktop
+                              if (!isMobile) {
+                                caretPosRef.current = 0;
+                              }
                             }
                           }}
                           className={`w-full px-4 py-2 pl-10 border border-white/30 bg-white/80 backdrop-blur-sm rounded-lg focus:ring-2 focus:ring-white/50 focus:border-white/50 text-gray-900 placeholder-gray-600 transition-all duration-200 ${
@@ -1623,11 +1635,10 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                             onClick={() => {
                               setImmediateSearchTerm("");
                               setSearchTerm("");
-                              caretPosRef.current = 0;
+                              if (!isMobile) {
+                                caretPosRef.current = 0;
+                              }
                               // Behold fokus når vi tømmer - men bare på desktop
-                              const isMobile = /iPhone|iPad|iPod|Android/i.test(
-                                navigator.userAgent
-                              );
                               if (!isMobile && searchInputRef.current) {
                                 searchInputRef.current.focus({
                                   preventScroll: true,
