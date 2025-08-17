@@ -13,12 +13,10 @@ import dynamic from "next/dynamic";
 import {
   startTransition,
   useCallback,
-  useDeferredValue,
   useEffect,
   useMemo,
   useRef,
   useState,
-  useTransition,
 } from "react";
 
 // Components (No SSR for VirtualizedPlayerList to avoid hydration mismatch)
@@ -177,76 +175,8 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
     }
   };
 
-  // 🔎 Søkefunksjon (live) + fokusbevaring med optimalisert debouncing
+  // 🔎 Enkel søkefunksjon uten kompliserte optimalisieringer
   const [searchTerm, setSearchTerm] = useState<string>("");
-  const [immediateSearchTerm, setImmediateSearchTerm] = useState<string>("");
-  const [isSearchPending, startSearchTransition] = useTransition();
-
-  // Detect mobile once to avoid repeated detection
-  const isMobile = useMemo(() => {
-    if (typeof navigator === "undefined") return false;
-    return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-  }, []);
-
-  // Bruk en "deferred" verdi for å gjøre filtrering litt senere enn tastingen,
-  // slik at UI ikke "jitter" og vi kan bevare fokus stabilt.
-  const deferredSearch = useDeferredValue(searchTerm);
-
-  // Debounce search term updates for smoother experience
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
-
-    if (immediateSearchTerm === "") {
-      // Clear search immediately for empty string
-      setSearchTerm("");
-      return;
-    }
-
-    // På mobile enheter - oppdater umiddelbart uten transitions for å unngå re-renders
-    if (isMobile) {
-      setSearchTerm(immediateSearchTerm);
-      return;
-    }
-
-    // Desktop: bruk debounce og transitions
-    searchTimeoutRef.current = setTimeout(() => {
-      startSearchTransition(() => {
-        setSearchTerm(immediateSearchTerm);
-      });
-    }, 150);
-
-    return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current);
-      }
-    };
-  }, [immediateSearchTerm, isMobile]);
-
-  // Ref-er for å bevare fokus/markørposisjon mens vi skriver
-  const searchInputRef = useRef<HTMLInputElement | null>(null);
-  const keepFocusRef = useRef(false);
-  const caretPosRef = useRef<number | null>(null);
-
-  // Forenklet focus-logikk som unngår re-renders på mobile
-  useEffect(() => {
-    if (!keepFocusRef.current || !searchInputRef.current || isMobile) return;
-
-    const el = searchInputRef.current;
-    // Re-fokus uten scrolling kun på desktop
-    el.focus({ preventScroll: true });
-    // Gjenopprett markørposisjon (dersom vi har en)
-    if (caretPosRef.current != null) {
-      try {
-        el.setSelectionRange(caretPosRef.current, caretPosRef.current);
-      } catch {
-        // No-op hvis input type osv. ikke støtter setSelectionRange
-      }
-    }
-  }, [deferredSearch, isMobile]);
 
   const [filters, setFilters] = useState({
     gender: "all",
@@ -397,7 +327,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
   const getFilteredPlayers = useCallback(
     (playerList: NormalizedPlayer[]) => {
       // Early return hvis ingen søk eller filter
-      if (!deferredSearch && Object.values(filters).every((v) => v === "all")) {
+      if (!searchTerm && Object.values(filters).every((v) => v === "all")) {
         return playerList.filter((player) => {
           // Filtrer bare ut spillere som allerede er tatt ut til et lag
           return !(player.selectedForTeam && player.selectedForTeam.trim());
@@ -405,10 +335,10 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
       }
 
       // Forberegn søkeverdier for bedre ytelse
-      const searchRaw = deferredSearch;
+      const searchRaw = searchTerm;
       const searchLower = searchRaw?.toLowerCase().trim() || "";
       const searchDigits = searchRaw?.replace(/\s/g, "") || "";
-      const hasSearch = !!deferredSearch;
+      const hasSearch = !!searchTerm;
       const searchIsNumeric = hasSearch && /^\d+$/.test(searchDigits);
 
       return playerList.filter((player) => {
@@ -520,7 +450,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
         return true;
       });
     },
-    [filters, deferredSearch]
+    [filters, searchTerm]
   );
 
   // --- Lookup maps ---
@@ -609,20 +539,20 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
   // Memoize filtered players computation for better performance
   const filteredPlayersComputation = useMemo(() => {
     // Early return optimization for empty search and no filters
-    if (!deferredSearch && Object.values(filters).every((v) => v === "all")) {
+    if (!searchTerm && Object.values(filters).every((v) => v === "all")) {
       return players.filter((player) => {
         return !(player.selectedForTeam && player.selectedForTeam.trim());
       });
     }
 
     return getFilteredPlayers(players);
-  }, [getFilteredPlayers, players, deferredSearch, filters]);
+  }, [getFilteredPlayers, players, searchTerm, filters]);
 
   // For å vise riktig antall i søkemeldingen
   const searchResultCount = useMemo(() => {
-    if (!deferredSearch) return 0;
+    if (!searchTerm) return 0;
     return filteredPlayersComputation.length;
-  }, [deferredSearch, filteredPlayersComputation]);
+  }, [searchTerm, filteredPlayersComputation]);
 
   const available = useMemo(() => {
     const filteredPlayers = filteredPlayersComputation.filter(
@@ -1573,7 +1503,6 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                     <div className="mb-2">
                       <div className="relative">
                         <input
-                          ref={searchInputRef}
                           type="text"
                           inputMode="search"
                           autoComplete="off"
@@ -1581,37 +1510,14 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                           autoCapitalize="off"
                           spellCheck={false}
                           placeholder="Søk etter navn eller registreringsnummer..."
-                          value={immediateSearchTerm}
-                          onFocus={() => {
-                            if (!isMobile) {
-                              keepFocusRef.current = true;
-                            }
-                          }}
-                          onBlur={() => {
-                            // Slå av fokus-bevaring når brukeren forlater feltet
-                            keepFocusRef.current = false;
-                          }}
-                          onChange={(e) => {
-                            // Forenklet change handler for mobile - unngå caret tracking
-                            if (!isMobile) {
-                              caretPosRef.current =
-                                e.currentTarget.selectionStart;
-                            }
-                            setImmediateSearchTerm(e.target.value);
-                          }}
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
                           onKeyDown={(e) => {
                             if (e.key === "Escape") {
-                              setImmediateSearchTerm("");
                               setSearchTerm("");
-                              // Kun reset caret på desktop
-                              if (!isMobile) {
-                                caretPosRef.current = 0;
-                              }
                             }
                           }}
-                          className={`w-full px-4 py-2 pl-10 border border-white/30 bg-white/80 backdrop-blur-sm rounded-lg focus:ring-2 focus:ring-white/50 focus:border-white/50 text-gray-900 placeholder-gray-600 transition-all duration-200 ${
-                            isSearchPending ? "opacity-75" : ""
-                          }`}
+                          className="w-full px-4 py-2 pl-10 border border-white/30 bg-white/80 backdrop-blur-sm rounded-lg focus:ring-2 focus:ring-white/50 focus:border-white/50 text-gray-900 placeholder-gray-600 transition-all duration-200"
                         />
                         <svg
                           className="absolute left-3 top-2.5 h-5 w-5 text-gray-500"
@@ -1626,55 +1532,20 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                           />
                         </svg>
 
-                        {immediateSearchTerm && (
+                        {searchTerm && (
                           <button
                             type="button"
                             aria-label="Tøm søk"
                             title="Tøm søk"
-                            onMouseDown={(e) => e.preventDefault()} // hindrer blur før click
-                            onClick={() => {
-                              setImmediateSearchTerm("");
-                              setSearchTerm("");
-                              if (!isMobile) {
-                                caretPosRef.current = 0;
-                              }
-                              // Behold fokus når vi tømmer - men bare på desktop
-                              if (!isMobile && searchInputRef.current) {
-                                searchInputRef.current.focus({
-                                  preventScroll: true,
-                                });
-                                searchInputRef.current.setSelectionRange(0, 0);
-                              }
-                            }}
+                            onClick={() => setSearchTerm("")}
                             className="absolute right-2 top-2.5 px-3 py-1 text-xs font-medium rounded-md bg-gray-800 hover:bg-gray-900 text-white shadow-lg border border-gray-700 transition-all duration-200 hover:shadow-xl">
                             Tøm
                           </button>
                         )}
                       </div>
-                      {deferredSearch && (
+                      {searchTerm && (
                         <div className="flex items-center justify-between text-sm text-white/80 mt-2">
                           <span>Viser {searchResultCount} spillere</span>
-                          {isSearchPending && (
-                            <span className="flex items-center gap-1">
-                              <svg
-                                className="animate-spin h-3 w-3"
-                                fill="none"
-                                viewBox="0 0 24 24">
-                                <circle
-                                  cx="12"
-                                  cy="12"
-                                  r="10"
-                                  stroke="currentColor"
-                                  strokeWidth="4"
-                                  className="opacity-25"></circle>
-                                <path
-                                  fill="currentColor"
-                                  className="opacity-75"
-                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                              </svg>
-                              Oppdaterer...
-                            </span>
-                          )}
                         </div>
                       )}
                     </div>
@@ -1684,11 +1555,11 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                     <div className="text-center py-8 text-white/80">
                       <span className="text-4xl mb-4 block">👥</span>
                       <p className="text-white">
-                        {deferredSearch
+                        {searchTerm
                           ? "Ingen spillere funnet"
                           : "Laster spillere..."}
                       </p>
-                      {deferredSearch && (
+                      {searchTerm && (
                         <p className="text-sm text-white/70 mt-2">
                           Prøv å endre søkekriteriene
                         </p>
