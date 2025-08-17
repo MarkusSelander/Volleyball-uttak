@@ -2,9 +2,9 @@
 import { google } from "googleapis";
 import DashboardClient from "./DashboardClient";
 
-// ISR - revalidate data every 5 minutes (300 seconds) for better LCP
-// More frequent updates for better user experience while maintaining performance
-export const revalidate = 300;
+// ISR - revalidate data every 2 minutes (120 seconds) for better user experience
+// Frequent updates to ensure new players appear quickly
+export const revalidate = 120;
 
 interface PlayerData {
   name: string;

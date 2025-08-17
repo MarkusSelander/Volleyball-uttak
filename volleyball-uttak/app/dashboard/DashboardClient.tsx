@@ -148,6 +148,34 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
   const [selection, setSelection] = useState<TeamSelection>(emptySelection);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Refresh data function
+  const refreshData = async () => {
+    setIsRefreshing(true);
+    try {
+      // Force a hard refresh by calling the revalidate API
+      const response = await fetch("/api/revalidate-dashboard", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (response.ok) {
+        // Refresh the page to get new data
+        window.location.reload();
+      } else {
+        console.error("Failed to refresh data");
+        alert("Kunne ikke oppdatere data. Prøv igjen senere.");
+      }
+    } catch (error) {
+      console.error("Error refreshing data:", error);
+      alert("Kunne ikke oppdatere data. Sjekk internetttilkoblingen.");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   // 🔎 Søkefunksjon (live) + fokusbevaring med optimalisert debouncing
   const [searchTerm, setSearchTerm] = useState<string>("");
@@ -1322,6 +1350,11 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                 Filtrer spillere:
               </h3>
 
+              <div className="text-xs text-gray-500 dark:text-gray-400 mr-4">
+                Sist oppdatert:{" "}
+                {new Date(initialData.fetchedAt).toLocaleString("no-NO")}
+              </div>
+
               <div className="flex items-center gap-2">
                 <label
                   htmlFor="gender-filter"
@@ -1470,6 +1503,45 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                 }
                 className="px-3 py-1 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                 Nullstill
+              </button>
+
+              <button
+                onClick={refreshData}
+                disabled={isRefreshing}
+                className="px-3 py-1 text-sm text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed border border-blue-600 rounded-lg transition-colors flex items-center gap-2">
+                {isRefreshing ? (
+                  <>
+                    <svg
+                      className="w-4 h-4 animate-spin"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                      />
+                    </svg>
+                    Oppdaterer...
+                  </>
+                ) : (
+                  <>
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                      />
+                    </svg>
+                    Oppdater data
+                  </>
+                )}
               </button>
             </div>
           </div>
