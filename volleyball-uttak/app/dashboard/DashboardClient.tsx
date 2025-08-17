@@ -200,11 +200,15 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
       return;
     }
 
+    // Kortere debounce på mobile enheter for bedre responsivitet
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const debounceTime = isMobile ? 100 : 150;
+
     searchTimeoutRef.current = setTimeout(() => {
       startSearchTransition(() => {
         setSearchTerm(immediateSearchTerm);
       });
-    }, 150); // 150ms debounce for smoother typing
+    }, debounceTime);
 
     return () => {
       if (searchTimeoutRef.current) {
@@ -222,6 +226,11 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
   // sørg for at feltet fortsatt har fokus og at markørposisjonen bevares.
   useEffect(() => {
     if (!keepFocusRef.current || !searchInputRef.current) return;
+
+    // Unngå aggressive focus-manipulation på mobile enheter
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if (isMobile) return;
+
     const el = searchInputRef.current;
     // Re-fokus uten scrolling
     el.focus({ preventScroll: true });
@@ -1562,6 +1571,11 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                         <input
                           ref={searchInputRef}
                           type="text"
+                          inputMode="search"
+                          autoComplete="off"
+                          autoCorrect="off"
+                          autoCapitalize="off"
+                          spellCheck={false}
                           placeholder="Søk etter navn eller registreringsnummer..."
                           value={immediateSearchTerm}
                           onFocus={() => (keepFocusRef.current = true)}
@@ -1610,8 +1624,11 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                               setImmediateSearchTerm("");
                               setSearchTerm("");
                               caretPosRef.current = 0;
-                              // Behold fokus når vi tømmer
-                              if (searchInputRef.current) {
+                              // Behold fokus når vi tømmer - men bare på desktop
+                              const isMobile = /iPhone|iPad|iPod|Android/i.test(
+                                navigator.userAgent
+                              );
+                              if (!isMobile && searchInputRef.current) {
                                 searchInputRef.current.focus({
                                   preventScroll: true,
                                 });
