@@ -1350,11 +1350,6 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                 Filtrer spillere:
               </h3>
 
-              <div className="text-xs text-gray-500 dark:text-gray-400 mr-4">
-                Sist oppdatert:{" "}
-                {new Date(initialData.fetchedAt).toLocaleString("no-NO")}
-              </div>
-
               <div className="flex items-center gap-2">
                 <label
                   htmlFor="gender-filter"
